@@ -192,3 +192,14 @@ Loaders simplify your data fetching logic dramatically. Check out more informati
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
 
 For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+
+## Authentification locale
+
+- Démarrer le backend depuis `backend/` avec `uv run uvicorn main:app --reload` (port 8000).
+- Dans `frontend/`, copier `.env.example` vers `.env`, puis lancer `npm run dev`.
+- Ouvrir `http://localhost:3000` : les visiteurs sont dirigés vers `/login`.
+- Le compte doit déjà exister en base et être actif et vérifié. Aucun formulaire d'inscription n'est exposé.
+- Vite transmet `/api/*` au backend en retirant `/api`. Le navigateur reste sur la même origine pour les cookies.
+- `VITE_CSRF_COOKIE_NAME` doit correspondre exactement à `AUTH_CSRF_COOKIE_NAME` côté backend, y compris la casse.
+- En production, transmettre `/api/*` au backend en retirant `/api`, et servir `index.html` pour les routes frontend. Activer `AUTH_COOKIE_SECURE=true` avec HTTPS.
+- Aucun jeton ni cache utilisateur n'est persisté dans le stockage du navigateur.
