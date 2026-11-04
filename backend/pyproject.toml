@@ -1,9 +1,13 @@
 [project]
-name = "backend"
+name = "Optina-Api"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.12"
+description = "Optina API "
+requires-python = ">=3.14"
 dependencies = [
+    "asyncpg>=0.32.0",
     "fastapi>=0.162.0",
+    "fastapi-users[sqlalchemy]>=15.0.5,<16",
+    "pydantic-settings>=2.16.2",
+    "sqlalchemy[asyncio]>=2.0,<2.1",
     "uvicorn>=0.54.0",
 ]

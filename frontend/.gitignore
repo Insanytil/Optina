@@ -1,0 +1,26 @@
+# Dépendances
+node_modules/
+
+# Builds et couverture
+/dist/
+/dist-ssr/
+coverage/
+
+# Caches et fichiers générés par les outils
+.tanstack/
+.nitro/
+.wrangler/
+.output/
+.vinxi/
+.vite/
+.cache/
+.eslintcache
+*.tsbuildinfo
+__unconfig*
+
+# Configuration locale (les exemples restent versionnables)
+*.local
+.env
+.env.*
+!.env.example
+!.env.*.example

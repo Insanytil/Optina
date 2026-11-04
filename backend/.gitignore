@@ -1,9 +1,3 @@
-# Configuration locale et secrets (conserver les exemples)
-.env
-.env.*
-!.env.example
-!.env.*.example
-
 # Environnements Python
 .venv/
 venv/
@@ -39,12 +33,3 @@ junit.xml
 *.pid
 celerybeat-schedule*
 celerybeat.pid
-
-# Réglages locaux d'IDE et fichiers système
-.idea/
-.DS_Store
-Thumbs.db
-Desktop.ini
-*.swp
-*.swo
-*~
