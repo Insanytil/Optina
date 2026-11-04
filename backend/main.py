@@ -4,9 +4,12 @@ from app.modules.auth.router.auth_router import router as auth_router
 
 from app.modules.wallet.router.wallet_router import router as wallet_router
 
+from app.modules.category.router.category_router import router as category_router
+
 app = FastAPI()
 app.include_router(auth_router)
 app.include_router(wallet_router)
+app.include_router(category_router)
 
 
 @app.get("/")

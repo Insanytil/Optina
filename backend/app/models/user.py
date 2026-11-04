@@ -21,6 +21,7 @@ from app.db.base_entity import TimestampMixin
 if TYPE_CHECKING:
     from app.models.auth_session import AuthSession
     from app.models.wallet import Wallet
+    from app.models.category import Category
 
 class User(
     TimestampMixin,
@@ -38,6 +39,12 @@ class User(
         back_populates="user",
         lazy="raise",
     )
+    categories: Mapped[list["Category"]] = relationship(
+        back_populates="user",
+        foreign_keys="Category.user_id",
+        lazy="raise",
+    )
+
 
 Index(
     "uq_users_email_lower",

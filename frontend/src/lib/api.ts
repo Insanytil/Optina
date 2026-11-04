@@ -1,16 +1,22 @@
 export class ServerUnavailableError extends Error {
   constructor() {
-    super('Le serveur est momentanément injoignable. Veuillez réessayer dans quelques instants.')
+    super(
+      'Le serveur est momentanément injoignable. Veuillez réessayer dans quelques instants.',
+    )
     this.name = 'ServerUnavailableError'
   }
 }
 
 export class ApiError extends Error {
-  constructor(public status: number) {
+  constructor(
+    public status: number,
+    message?: string,
+  ) {
     super(
-      status === 401
-        ? 'Email ou mot de passe incorrect.'
-        : 'Le serveur ne peut pas traiter votre demande. Réessayez.',
+      message ??
+        (status === 401
+          ? 'Email ou mot de passe incorrect.'
+          : 'Le serveur ne peut pas traiter votre demande. Réessayez.'),
     )
   }
 }
@@ -55,7 +61,19 @@ export async function api<T>(
     window.dispatchEvent(new Event('auth:expired'))
   }
   if (response.status >= 500) throw new ServerUnavailableError()
-  if (!response.ok) throw new ApiError(response.status)
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null)
+    const detail =
+      body && typeof body === 'object' && 'detail' in body
+        ? body.detail
+        : undefined
+    throw new ApiError(
+      response.status,
+      response.status !== 401 && typeof detail === 'string'
+        ? detail
+        : undefined,
+    )
+  }
   return response.status === 204
     ? (undefined as T)
     : (response.json() as Promise<T>)
