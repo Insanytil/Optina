@@ -1,0 +1,36 @@
+Migrations PostgreSQL (asyncpg)
+=============================
+
+La connexion utilise les paramètres POSTGRES_* de backend/.env.
+Copier backend/.env.example vers backend/.env et démarrer PostgreSQL.
+
+Depuis backend/ :
+
+    uv sync
+    uv run alembic revision --autogenerate -m "create users and auth sessions"
+    uv run alembic upgrade head
+
+Après une modification des modèles :
+
+    uv run alembic revision --autogenerate -m "describe schema change"
+
+Relire le fichier généré dans alembic/versions/, puis appliquer :
+
+    uv run alembic upgrade head
+
+Commandes utiles :
+
+    uv run alembic current
+    uv run alembic history
+    uv run alembic check
+    uv run alembic upgrade head --sql
+
+La génération automatique nécessite une connexion à PostgreSQL et une base
+à jour avec les migrations existantes. Le mode --sql ne se connecte pas à la
+base, mais nécessite les paramètres de configuration et des migrations existantes.
+Alembic ne détecte pas toutes les modifications (notamment certains CHECK et
+les renommages) : vérifier systématiquement les opérations générées.
+
+Les modèles sont enregistrés dans app/models/__init__.py. Ajouter les nouveaux
+modèles à ce module pour qu'ils soient détectés par Alembic.
+Les fichiers de migration doivent être versionnés dans Git.

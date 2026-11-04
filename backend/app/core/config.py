@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://127.0.0.1:6379/1"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=API_DIR / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
 
