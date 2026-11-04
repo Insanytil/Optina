@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
-import { getSession, queryClient, safeRedirect } from '@/features/auth/session'
+import { refreshSessionAfterLogin, safeRedirect } from '@/features/auth/session'
 
 export const Route = createFileRoute('/_guest/login')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -37,8 +37,7 @@ function LoginPage() {
         method: 'POST',
         body: JSON.stringify(values),
       })
-      queryClient.clear()
-      if (!(await getSession()))
+      if (!(await refreshSessionAfterLogin()))
         throw new Error('La session n’a pas pu être établie. Réessayez.')
       await router.invalidate()
       await router.navigate({ href: redirect, replace: true })

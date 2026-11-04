@@ -14,19 +14,45 @@ export const queryClient = new QueryClient({
 
 export const sessionOptions = queryOptions({
   queryKey: ['auth', 'me'],
-  queryFn: async () => {
+  queryFn: async ({ signal }) => {
     try {
-      return await api<User>('/auth/me')
+      return await api<User>('/auth/me', { signal })
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) return null
       throw error
     }
   },
-  staleTime: 0,
+  // Route guards read the cache; focus/reconnect refresh only stale sessions.
+  staleTime: 5 * 60_000,
+  refetchOnMount: false,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
 })
 
 export function getSession() {
-  return queryClient.fetchQuery(sessionOptions)
+  return queryClient.ensureQueryData(sessionOptions)
+}
+
+export function clearPrivateData() {
+  void queryClient.cancelQueries({
+    predicate: (query) => query.queryKey[0] !== 'auth',
+  })
+  queryClient.removeQueries({
+    predicate: (query) => query.queryKey[0] !== 'auth',
+  })
+  queryClient.getMutationCache().clear()
+}
+
+export function setAnonymousSession() {
+  void queryClient.cancelQueries({ queryKey: sessionOptions.queryKey })
+  clearPrivateData()
+  queryClient.setQueryData(sessionOptions.queryKey, null)
+}
+
+export async function refreshSessionAfterLogin() {
+  void queryClient.cancelQueries({ queryKey: sessionOptions.queryKey })
+  clearPrivateData()
+  return queryClient.fetchQuery({ ...sessionOptions, staleTime: 0 })
 }
 
 export function safeRedirect(value: unknown): string {

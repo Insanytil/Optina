@@ -10,7 +10,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { api, ApiError } from '@/lib/api'
-import { queryClient } from '@/features/auth/session'
+import { setAnonymousSession } from '@/features/auth/session'
 import type { User } from '@/features/auth/session'
 import { AppNavigation } from './app-navigation'
 import { navigationGroups } from './navigation'
@@ -31,7 +31,7 @@ export function AppSidebar({ user }: { user: User }) {
       } catch (cause) {
         if (!(cause instanceof ApiError && cause.status === 401)) throw cause
       }
-      queryClient.clear()
+      setAnonymousSession()
       await router.invalidate()
       await router.navigate({
         to: '/login',

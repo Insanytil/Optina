@@ -13,6 +13,7 @@ import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as GuestLoginRouteImport } from './routes/_guest/login'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
+import { Route as ProtectedWalletsRouteImport } from './routes/_protected/wallets'
 
 const GuestRoute = GuestRouteImport.update({
   id: '/_guest',
@@ -32,28 +33,42 @@ const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedWalletsRoute = ProtectedWalletsRouteImport.update({
+  id: '/wallets',
+  path: '/wallets',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
   '/login': typeof GuestLoginRoute
+  '/wallets': typeof ProtectedWalletsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
   '/login': typeof GuestLoginRoute
+  '/wallets': typeof ProtectedWalletsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_guest': typeof GuestRouteWithChildren
   '/_protected': typeof ProtectedRouteWithChildren
   '/_guest/login': typeof GuestLoginRoute
+  '/_protected/wallets': typeof ProtectedWalletsRoute
   '/_protected/': typeof ProtectedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths: '/' | '/login' | '/wallets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login'
-  id: '__root__' | '/_guest' | '/_protected' | '/_guest/login' | '/_protected/'
+  to: '/' | '/login' | '/wallets'
+  id:
+    | '__root__'
+    | '/_guest'
+    | '/_protected'
+    | '/_guest/login'
+    | '/_protected/wallets'
+    | '/_protected/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -91,6 +106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/wallets': {
+      id: '/_protected/wallets'
+      path: '/wallets'
+      fullPath: '/wallets'
+      preLoaderRoute: typeof ProtectedWalletsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
   }
 }
 
@@ -105,10 +127,12 @@ const GuestRouteChildren: GuestRouteChildren = {
 const GuestRouteWithChildren = GuestRoute._addFileChildren(GuestRouteChildren)
 
 interface ProtectedRouteChildren {
+  ProtectedWalletsRoute: typeof ProtectedWalletsRoute
   ProtectedIndexRoute: typeof ProtectedIndexRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedWalletsRoute: ProtectedWalletsRoute,
   ProtectedIndexRoute: ProtectedIndexRoute,
 }
 

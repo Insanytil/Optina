@@ -20,6 +20,7 @@ from app.db.base_entity import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.auth_session import AuthSession
+    from app.models.wallet import Wallet
 
 class User(
     TimestampMixin,
@@ -33,6 +34,11 @@ class User(
         passive_deletes=True,
         lazy="raise",
     )
+    wallets: Mapped[list["Wallet"]] = relationship(
+        back_populates="user",
+        lazy="raise",
+    )
+
 Index(
     "uq_users_email_lower",
     func.lower(User.email),
