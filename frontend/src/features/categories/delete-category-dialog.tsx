@@ -1,3 +1,4 @@
+import { walletKeys } from '@/features/wallets/api'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,10 @@ export function DeleteCategoryDialog({
     mutationFn: () => deleteCategory(category.id),
     onSuccess: async () => {
       onDeleted()
-      await client.invalidateQueries({ queryKey: categoryKeys.all })
+      await Promise.all([
+        client.invalidateQueries({ queryKey: categoryKeys.all }),
+        client.invalidateQueries({ queryKey: walletKeys.all }),
+      ])
     },
   })
   return (

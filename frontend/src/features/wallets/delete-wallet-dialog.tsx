@@ -40,7 +40,8 @@ export function DeleteWalletDialog({
           <DialogTitle>Supprimer le portefeuille ?</DialogTitle>
           <DialogDescription>
             Le portefeuille « {wallet.name} » sera définitivement supprimé.
-            Cette action est irréversible.
+            Cette action est irréversible. Un portefeuille contenant des
+            mouvements doit être conservé.
           </DialogDescription>
         </DialogHeader>
         {mutation.error && (

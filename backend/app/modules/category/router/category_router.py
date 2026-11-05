@@ -51,7 +51,7 @@ async def get_category(category_id: uuid.UUID, user: CurrentUser, service: Categ
 async def create_category(payload: CategoryCreate, auth: CsrfProtectedSession, service: CategoryServiceDep):
     try:
         return await service.create(user_id=auth.user.id, payload=payload)
-    except CategoryNotFoundError as error:
+    except (CategoryNotFoundError, CategoryHierarchyError) as error:
         raise category_error(error) from None
 
 

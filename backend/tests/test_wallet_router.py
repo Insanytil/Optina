@@ -106,3 +106,85 @@ class WalletRouterTests(unittest.IsolatedAsyncioTestCase):
         self.service.delete.side_effect = WalletNotFoundError()
         status, _ = await self.request("DELETE", f"/wallets/{self.wallet.id}", csrf=True)
         self.assertEqual(status, 404)
+
+    async def test_summary_requires_authentication(self):
+        status, _ = await self.request("GET", f"/wallets/{self.wallet.id}/summary")
+        self.assertEqual(status, 401)
+        self.service.summary.assert_not_awaited()
+
+    async def test_summary_parses_period_and_serializes_exact_money(self):
+        from datetime import date
+        from app.modules.wallet.schemas import WalletSummaryResponse
+        self.authenticate()
+        self.service.summary.return_value = WalletSummaryResponse(wallet=self.wallet, date_from=date(2026, 1, 1),
+            date_to=date(2026, 1, 31), income=Decimal("100.01"), expenses=Decimal("25.02"), net=Decimal("74.99"))
+        status, data = await self.request("GET", f"/wallets/{self.wallet.id}/summary", query=b"date_from=2026-01-01&date_to=2026-01-31")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["income"], "100.01")
+        self.assertEqual(data["net"], "74.99")
+        args = self.service.summary.call_args.kwargs
+        self.assertEqual(args["user_id"], self.user_id)
+        self.assertEqual(args["wallet_id"], self.wallet.id)
+        self.assertEqual(args["period"].date_from, date(2026, 1, 1))
+
+    async def test_summary_invalid_period_returns_validation_error(self):
+        self.authenticate()
+        status, _ = await self.request("GET", f"/wallets/{self.wallet.id}/summary", query=b"date_from=2026-02-01&date_to=2026-01-01")
+        self.assertEqual(status, 422)
+        self.service.summary.assert_not_awaited()
+
+    async def test_summary_foreign_wallet_returns_not_found(self):
+        self.authenticate()
+        self.service.summary.side_effect = WalletNotFoundError()
+        status, _ = await self.request("GET", f"/wallets/{self.wallet.id}/summary")
+        self.assertEqual(status, 404)
+
+    async def test_analytics_requires_authentication(self):
+        status, _ = await self.request("GET", f"/wallets/{self.wallet.id}/analytics")
+        self.assertEqual(status, 401)
+        self.service.analytics.assert_not_awaited()
+
+    async def test_analytics_returns_exact_amounts_and_uses_session_owner(self):
+        from datetime import date
+        from app.modules.wallet.schemas import WalletAnalyticsResponse, ExpenseBucket
+        self.authenticate()
+        self.service.analytics.return_value = WalletAnalyticsResponse(expense_granularity="day",
+            expenses_by_date=[ExpenseBucket(date=date(2026, 1, 1), amount=Decimal("12.34"))],
+            expenses_by_category=[], monthly=[], top_expenses=[], activity=[], activity_from=date(2025, 11, 3), activity_to=date(2026, 1, 31))
+        status, data = await self.request("GET", f"/wallets/{self.wallet.id}/analytics", query=b"date_from=2026-01-01&date_to=2026-01-31")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["expenses_by_date"][0]["amount"], "12.34")
+        self.assertEqual(self.service.analytics.call_args.kwargs["user_id"], self.user_id)
+
+    async def test_analytics_missing_wallet_returns_not_found(self):
+        self.authenticate()
+        self.service.analytics.side_effect = WalletNotFoundError()
+        status, _ = await self.request("GET", f"/wallets/{self.wallet.id}/analytics")
+        self.assertEqual(status, 404)
+
+    async def test_category_breakdown_parses_category_and_period(self):
+        from datetime import date
+        from app.modules.wallet.schemas import WalletCategoryBreakdown
+        self.authenticate()
+        identifier = uuid4()
+        self.service.category_breakdown.return_value = WalletCategoryBreakdown(path=[], items=[], direct_amount=Decimal("1.23"), total=Decimal("1.23"))
+        status, data = await self.request("GET", f"/wallets/{self.wallet.id}/category-breakdown",
+            query=f"category_id={identifier}&date_from=2026-01-01&date_to=2026-01-31".encode())
+        self.assertEqual(status, 200)
+        self.assertEqual(data["total"], "1.23")
+        kwargs = self.service.category_breakdown.call_args.kwargs
+        self.assertEqual(kwargs["user_id"], self.user_id)
+        self.assertEqual(kwargs["params"].category_id, identifier)
+        self.assertEqual(kwargs["params"].date_from, date(2026, 1, 1))
+
+    async def test_category_breakdown_requires_authentication(self):
+        status, _ = await self.request("GET", f"/wallets/{self.wallet.id}/category-breakdown")
+        self.assertEqual(status, 401)
+        self.service.category_breakdown.assert_not_awaited()
+
+    async def test_category_breakdown_foreign_category_returns_not_found(self):
+        from app.modules.category.exceptions import CategoryNotFoundError
+        self.authenticate()
+        self.service.category_breakdown.side_effect = CategoryNotFoundError()
+        status, _ = await self.request("GET", f"/wallets/{self.wallet.id}/category-breakdown")
+        self.assertEqual(status, 404)

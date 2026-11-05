@@ -1,0 +1,70 @@
+import uuid
+from datetime import date as DateValue, datetime
+from decimal import Decimal
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+
+from app.core.pagination import PagePaginationParams
+from app.models.wallet_transaction import TransactionKind, TransactionType
+
+Amount = Annotated[Decimal, Field(gt=0, max_digits=19, decimal_places=2, allow_inf_nan=False)]
+Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+
+
+class TransactionWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    wallet_id: uuid.UUID
+    category_id: uuid.UUID | None = None
+    type: TransactionType
+    amount: Amount
+    date: DateValue
+    label: Label
+    note: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("date")
+    @classmethod
+    def performed_date(cls, value: DateValue) -> DateValue:
+        if value > DateValue.today():
+            raise ValueError("La date ne peut pas être dans le futur.")
+        return value
+
+
+class TransactionCreate(TransactionWrite):
+    category_id: uuid.UUID
+
+
+class TransactionUpdate(TransactionWrite):
+    pass
+
+
+class TransactionResponse(BaseModel):
+    recurrence_id: uuid.UUID | None = None
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    wallet_id: uuid.UUID
+    category_id: uuid.UUID | None
+    type: TransactionType
+    kind: TransactionKind
+    amount: Decimal
+    date: DateValue
+    label: str
+    note: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TransactionListParams(PagePaginationParams):
+    wallet_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+    include_subcategories: bool = True
+    type: TransactionType | None = None
+    kind: TransactionKind | None = None
+    date_from: DateValue | None = None
+    date_to: DateValue | None = None
+
+    @model_validator(mode="after")
+    def valid_period(self):
+        if self.date_from and self.date_to and self.date_from > self.date_to:
+            raise ValueError("La date de début doit précéder la date de fin.")
+        return self

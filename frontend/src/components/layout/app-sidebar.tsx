@@ -1,3 +1,4 @@
+import { ThemeToggle } from '@/features/theme/theme-toggle'
 import { useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import { LoaderCircle, LogOut, UserRound, X } from 'lucide-react'
@@ -89,6 +90,7 @@ export function AppSidebar({ user }: { user: User }) {
             </p>
           </div>
         </div>
+        <ThemeToggle />
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}

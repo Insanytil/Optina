@@ -55,6 +55,9 @@ class CategoryService:
             if payload.parent_id is not None:
                 await self.get_by_id(user_id=user_id, category_id=payload.parent_id)
             category = await self.repository.create(user_id=user_id, name=payload.name, parent_id=payload.parent_id)
+            if payload.wallet_ids is not None:
+                await self.repository.set_availability(user_id=user_id, category_id=category.id, wallet_ids=payload.wallet_ids)
+                category = await self.repository.get_by_id(user_id=user_id, category_id=category.id)
             response = CategoryResponse.model_validate(category)
             await self.db.commit()
             return response
@@ -79,6 +82,9 @@ class CategoryService:
                 updated = await self.repository.move(user_id=user_id, category_id=category_id, parent_id=parent_id, position=position)
                 if updated is None:
                     raise CategoryNotFoundError()
+            if "wallet_ids" in payload.model_fields_set:
+                await self.repository.set_availability(user_id=user_id, category_id=category_id, wallet_ids=payload.wallet_ids)
+            await self.repository.validate_active_recurrences(user_id=user_id)
             response = CategoryResponse.model_validate(updated)
             await self.db.commit()
             return response
@@ -92,6 +98,8 @@ class CategoryService:
             await self.get_by_id(user_id=user_id, category_id=category_id)
             if await self.repository.has_children(user_id=user_id, category_id=category_id):
                 raise CategoryHierarchyError("Déplacez ou supprimez les sous-catégories avant de supprimer cette catégorie.")
+            if await self.repository.has_transactions(user_id=user_id, category_id=category_id):
+                raise CategoryHierarchyError("Cette catégorie contient des transactions et ne peut pas être supprimée.")
             if not await self.repository.delete(user_id=user_id, category_id=category_id):
                 raise CategoryNotFoundError()
             await self.db.commit()
@@ -126,6 +134,7 @@ class CategoryService:
             if moved is None:
                 raise CategoryNotFoundError()
             await self.repository.set_order(user_id=user_id, category_ids=identifiers)
+            await self.repository.validate_active_recurrences(user_id=user_id)
             response = CategoryResponse.model_validate(moved)
             await self.db.commit()
             return response

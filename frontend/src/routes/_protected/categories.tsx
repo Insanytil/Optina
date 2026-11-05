@@ -1,3 +1,4 @@
+import { walletKeys } from '@/features/wallets/api'
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -84,7 +85,10 @@ function CategoriesPage() {
         client.setQueryData(categoryKeys.tree, context.previous)
     },
     onSettled: async () => {
-      await client.invalidateQueries({ queryKey: categoryKeys.all })
+      await Promise.all([
+        client.invalidateQueries({ queryKey: categoryKeys.all }),
+        client.invalidateQueries({ queryKey: walletKeys.all }),
+      ])
     },
   })
   function reveal(parentId: string | null) {

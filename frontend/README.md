@@ -203,3 +203,27 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 - `VITE_CSRF_COOKIE_NAME` doit correspondre exactement à `AUTH_CSRF_COOKIE_NAME` côté backend, y compris la casse.
 - En production, transmettre `/api/*` au backend en retirant `/api`, et servir `index.html` pour les routes frontend. Activer `AUTH_COOKIE_SECURE=true` avec HTTPS.
 - Aucun jeton ni cache utilisateur n'est persisté dans le stockage du navigateur.
+
+## Navigation par portefeuille
+
+L'accueil et `/wallets` affichent les portefeuilles. Chaque carte ouvre
+`/wallets/$walletId`, avec le solde actuel, les rentrées/dépenses/résultat de la
+période, les graphiques, le top des dépenses et l’activité récente.
+Le mois en cours est sélectionné par défaut ; les dates sont personnalisables.
+Les mouvements d'ouverture sont exclus des indicateurs, mais inclus dans le solde.
+Les filtres de catégorie/type/nature portent uniquement sur la liste des mouvements.
+Le formulaire de transaction est lié au portefeuille ouvert.
+La page `/transactions` reste accessible depuis le menu ; elle permet de sélectionner
+un portefeuille et de gérer ses mouvements sur la période choisie.
+
+Les indicateurs proviennent de `GET /wallets/{id}/summary?date_from=...&date_to=...`.
+Ils sont agrégés en SQL sur toute la période, indépendamment de la pagination.
+Toute écriture de mouvement invalide aussi le cache des portefeuilles et de leur synthèse.
+
+Les graphiques utilisent `GET /wallets/{id}/analytics` avec la même période que
+la synthèse. Les dépenses sont regroupées par catégorie principale, descendants
+inclus. L'évolution mensuelle couvre les douze mois jusqu'à la fin de période ;
+l'activité couvre les 90 jours précédant cette date, sans aller au-delà d'aujourd'hui.
+Les séries sont agrégées en SQL ; les conversions numériques du navigateur servent
+uniquement au tracé, les montants affichés restent issus des décimaux de l'API.
+Le thème sombre est proposé par défaut, avec un bouton de changement dans le menu.

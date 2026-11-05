@@ -8,8 +8,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { saveWallet, walletKeys } from './api'
 import type { Wallet } from './api'
+import { localToday } from '@/features/transactions/form-values'
+import { transactionKeys } from '@/features/transactions/api'
 
 const schema = z.object({
+  opening_date: z.iso
+    .date()
+    .refine(
+      (date) => date <= localToday(),
+      'La date ne peut pas être dans le futur.',
+    ),
   name: z
     .string()
     .trim()
@@ -41,6 +49,7 @@ export function WalletForm({
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
+      opening_date: localToday(),
       name: wallet?.name ?? '',
       balance: wallet?.balance ?? '0.00',
     },
@@ -50,11 +59,18 @@ export function WalletForm({
       saveWallet(
         wallet
           ? { name: values.name }
-          : { name: values.name, balance: values.balance.replace(',', '.') },
+          : {
+              name: values.name,
+              balance: values.balance.replace(',', '.'),
+              opening_date: values.opening_date,
+            },
         wallet?.id,
       ),
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: walletKeys.all })
+      await Promise.all([
+        client.invalidateQueries({ queryKey: walletKeys.all }),
+        client.invalidateQueries({ queryKey: transactionKeys.all }),
+      ])
       onSaved()
     },
   })
@@ -101,6 +117,25 @@ export function WalletForm({
           {errors.balance && (
             <p id="wallet-balance-error" className="text-sm text-destructive">
               {errors.balance.message}
+            </p>
+          )}
+        </div>
+      )}
+      {!wallet && (
+        <div className="space-y-2">
+          <Label htmlFor="wallet-opening-date">Date du solde initial</Label>
+          <Input
+            id="wallet-opening-date"
+            type="date"
+            max={localToday()}
+            className="h-10"
+            disabled={mutation.isPending}
+            aria-invalid={!!errors.opening_date}
+            {...register('opening_date')}
+          />
+          {errors.opening_date && (
+            <p className="text-sm text-destructive">
+              {errors.opening_date.message}
             </p>
           )}
         </div>

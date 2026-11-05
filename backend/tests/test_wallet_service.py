@@ -17,9 +17,12 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.db = AsyncMock()
         self.repo = AsyncMock()
-        self.service = WalletService(self.db, self.repo)
+        self.transactions = AsyncMock()
+        self.service = WalletService(self.db, self.repo, self.transactions)
         self.user_id = uuid4()
+        self.repo.has_transactions.return_value = False
         self.wallet = SimpleNamespace(id=uuid4(), name="Courant", balance=Decimal("12.34"), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        self.repo.lock_many.return_value = [self.wallet]
 
     async def test_create_commits_and_preserves_amount(self):
         self.repo.create.return_value = self.wallet
@@ -84,3 +87,105 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
             await self.service.delete(wallet_id=self.wallet.id, user_id=self.user_id)
         self.db.commit.assert_not_awaited()
         self.db.rollback.assert_awaited_once()
+
+    async def test_nonzero_initial_balance_creates_opening_once_without_adjusting_balance(self):
+        self.repo.create.return_value = self.wallet
+        await self.service.create(user_id=self.user_id, payload=WalletCreate(name="Courant", balance="-12.34"))
+        args = self.transactions.create.call_args.kwargs
+        self.assertEqual(args["kind"], "opening_balance")
+        self.assertEqual(args["type"], "expense")
+        self.assertEqual(args["amount"], Decimal("12.34"))
+        self.assertIsNone(args["category_id"])
+        self.repo.adjust_balance.assert_not_awaited()
+
+    async def test_zero_initial_balance_does_not_create_empty_opening(self):
+        self.repo.create.return_value = self.wallet
+        await self.service.create(user_id=self.user_id, payload=WalletCreate(name="Vide"))
+        self.transactions.create.assert_not_awaited()
+
+    async def test_wallet_with_transactions_cannot_be_deleted(self):
+        from app.modules.wallet.exceptions import WalletInUseError
+        self.repo.has_transactions.return_value = True
+        with self.assertRaises(WalletInUseError):
+            await self.service.delete(user_id=self.user_id, wallet_id=self.wallet.id)
+        self.repo.delete.assert_not_awaited()
+
+    async def test_summary_uses_database_aggregate_and_keeps_current_balance(self):
+        from datetime import date
+        from app.modules.wallet.schemas import WalletPeriod
+        period = WalletPeriod(date_from=date(2026, 1, 1), date_to=date(2026, 1, 31))
+        self.repo.get_summary.return_value = (self.wallet, Decimal("100.00"), Decimal("25.50"))
+        result = await self.service.summary(user_id=self.user_id, wallet_id=self.wallet.id, period=period)
+        self.assertEqual(result.net, Decimal("74.50"))
+        self.assertEqual(result.wallet.balance, self.wallet.balance)
+        self.repo.get_summary.assert_awaited_once_with(user_id=self.user_id, wallet_id=self.wallet.id,
+            date_from=period.date_from, date_to=period.date_to)
+        self.db.commit.assert_not_awaited()
+
+    async def test_summary_missing_or_foreign_wallet_is_not_found(self):
+        from app.modules.wallet.schemas import WalletPeriod
+        self.repo.get_summary.return_value = None
+        with self.assertRaises(WalletNotFoundError):
+            await self.service.summary(user_id=self.user_id, wallet_id=self.wallet.id, period=WalletPeriod())
+
+    async def test_summary_empty_period_has_zero_totals_and_retains_wallet(self):
+        from app.modules.wallet.schemas import WalletPeriod
+        self.repo.get_summary.return_value = (self.wallet, Decimal("0.00"), Decimal("0.00"))
+        result = await self.service.summary(user_id=self.user_id, wallet_id=self.wallet.id, period=WalletPeriod())
+        self.assertEqual(result.income, Decimal("0.00"))
+        self.assertEqual(result.expenses, Decimal("0.00"))
+        self.assertEqual(result.net, Decimal("0.00"))
+        self.assertEqual(result.wallet.balance, self.wallet.balance)
+
+    def test_summary_period_rejects_reversed_dates_and_handles_leap_year(self):
+        from datetime import date
+        from app.modules.wallet.schemas import WalletPeriod
+        with self.assertRaises(ValidationError):
+            WalletPeriod(date_from=date(2026, 2, 1), date_to=date(2026, 1, 31))
+        period = WalletPeriod(date_from=date(2024, 2, 1), date_to=date(2024, 2, 29))
+        self.assertEqual(period.date_to.day, 29)
+
+    async def test_analytics_fills_months_and_scopes_all_aggregates(self):
+        from datetime import date
+        from app.modules.wallet.schemas import WalletPeriod
+        self.repo.get_by_id.return_value = self.wallet
+        for method in ["expenses_by_date", "expenses_by_category", "monthly_movements", "activity", "top_expenses"]:
+            getattr(self.repo, method).return_value = []
+        self.repo.monthly_movements.return_value = [{"month": "2026-01", "income": Decimal("10.00"), "expenses": Decimal("2.00")}]
+        period = WalletPeriod(date_from=date(2026, 1, 1), date_to=date(2026, 1, 31))
+        result = await self.service.analytics(user_id=self.user_id, wallet_id=self.wallet.id, period=period)
+        self.assertEqual(len(result.monthly), 12)
+        self.assertEqual(result.monthly[0].month, "2025-02")
+        self.assertEqual(result.monthly[-1].income, Decimal("10.00"))
+        self.assertEqual(result.monthly[0].expenses, Decimal("0.00"))
+        self.assertEqual(result.expense_granularity, "day")
+        self.assertEqual(len(result.expenses_by_date), 31)
+        self.assertTrue(all(row.amount == Decimal("0.00") for row in result.expenses_by_date))
+        for method in ["expenses_by_date", "expenses_by_category", "monthly_movements", "activity", "top_expenses"]:
+            kwargs = getattr(self.repo, method).call_args.kwargs
+            self.assertEqual(kwargs["user_id"], self.user_id)
+            self.assertEqual(kwargs["wallet_id"], self.wallet.id)
+        self.assertEqual((result.activity_to - result.activity_from).days, 89)
+
+    async def test_analytics_groups_remaining_categories_without_losing_money(self):
+        from datetime import date
+        from uuid import uuid4
+        from app.modules.wallet.schemas import WalletPeriod
+        self.repo.get_by_id.return_value = self.wallet
+        for method in ["expenses_by_date", "monthly_movements", "activity", "top_expenses"]:
+            getattr(self.repo, method).return_value = []
+        self.repo.expenses_by_category.return_value = [dict(category_id=uuid4(), name=str(n), amount=Decimal("1.01")) for n in range(10)]
+        result = await self.service.analytics(user_id=self.user_id, wallet_id=self.wallet.id,
+            period=WalletPeriod(date_from=date(2026, 1, 1), date_to=date(2026, 12, 31)))
+        self.assertEqual(result.expense_granularity, "week")
+        self.assertEqual(len(result.expenses_by_category), 7)
+        self.assertEqual(result.expenses_by_category[-1].name, "Autres")
+        self.assertEqual(result.expenses_by_category[-1].amount, Decimal("4.04"))
+        self.assertEqual(sum(row.amount for row in result.expenses_by_category), Decimal("10.10"))
+
+    async def test_analytics_refuses_foreign_wallet_before_running_aggregates(self):
+        from app.modules.wallet.schemas import WalletPeriod
+        self.repo.get_by_id.return_value = None
+        with self.assertRaises(WalletNotFoundError):
+            await self.service.analytics(user_id=self.user_id, wallet_id=self.wallet.id, period=WalletPeriod())
+        self.repo.expenses_by_date.assert_not_awaited()

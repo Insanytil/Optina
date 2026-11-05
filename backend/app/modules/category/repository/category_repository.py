@@ -106,3 +106,20 @@ class CategoryRepository:
             .where(Category.user_id == user_id, Category.id.in_(category_ids))
             .values(position=case({identifier: index for index, identifier in enumerate(category_ids)}, value=Category.id))
             .execution_options(synchronize_session=False))
+
+    async def has_transactions(self, *, user_id: uuid.UUID, category_id: uuid.UUID) -> bool:
+        from app.models.wallet_transaction import WalletTransaction
+        return bool(await self.db.scalar(select(exists().where(
+            WalletTransaction.user_id == user_id, WalletTransaction.category_id == category_id))))
+
+    async def is_available(self, *, user_id: uuid.UUID, category_id: uuid.UUID, wallet_id: uuid.UUID) -> bool:
+        from app.modules.category.availability import available, graph
+        return available(await graph(self.db, user_id), category_id, wallet_id)
+
+    async def set_availability(self, *, user_id, category_id, wallet_ids):
+        from app.modules.category.availability import set_availability
+        await set_availability(self.db, user_id, category_id, wallet_ids)
+
+    async def validate_active_recurrences(self, *, user_id):
+        from app.modules.category.availability import validate_active_recurrences
+        await validate_active_recurrences(self.db, user_id)

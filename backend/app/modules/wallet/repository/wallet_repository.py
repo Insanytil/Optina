@@ -1,7 +1,8 @@
 import uuid
+from datetime import date as DateValue
 from decimal import Decimal
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, case, delete, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PagePaginationParams
@@ -80,3 +81,125 @@ class WalletRepository:
             .returning(Wallet.id)
         )
         return deleted_id is not None
+
+    async def lock_many(self, *, user_id: uuid.UUID, wallet_ids: list[uuid.UUID]) -> list[Wallet]:
+        result = await self.db.scalars(select(Wallet).where(Wallet.user_id == user_id, Wallet.id.in_(wallet_ids))
+            .order_by(Wallet.id).with_for_update().execution_options(populate_existing=True))
+        return list(result.all())
+
+    async def has_transactions(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID) -> bool:
+        from app.models.wallet_transaction import WalletTransaction
+        return bool(await self.db.scalar(select(exists().where(
+            WalletTransaction.user_id == user_id, WalletTransaction.wallet_id == wallet_id))))
+
+    async def get_summary(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                          date_from: DateValue, date_to: DateValue) -> tuple[Wallet, Decimal, Decimal] | None:
+        from app.models.wallet_transaction import WalletTransaction
+        # One snapshot for the current balance and period totals. The period only
+        # restricts the joined movements, so an empty period still returns the wallet.
+        statement = (
+            select(Wallet,
+                func.coalesce(func.sum(case((WalletTransaction.type == "income", WalletTransaction.amount), else_=0)), 0),
+                func.coalesce(func.sum(case((WalletTransaction.type == "expense", WalletTransaction.amount), else_=0)), 0))
+            .outerjoin(WalletTransaction, and_(
+                WalletTransaction.wallet_id == Wallet.id,
+                WalletTransaction.user_id == Wallet.user_id,
+                WalletTransaction.kind == "standard",
+                WalletTransaction.date >= date_from,
+                WalletTransaction.date <= date_to,
+            ))
+            .where(Wallet.user_id == user_id, Wallet.id == wallet_id)
+            .group_by(Wallet.id)
+        )
+        row = (await self.db.execute(statement)).one_or_none()
+        return None if row is None else (row[0], row[1], row[2])
+
+    async def expenses_by_date(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                               date_from: DateValue, date_to: DateValue, granularity: str):
+        from sqlalchemy import Date, cast
+        from app.models.wallet_transaction import WalletTransaction as Movement
+        bucket = cast(func.date_trunc(granularity, Movement.date), Date)
+        result = await self.db.execute(select(bucket.label("date"), func.sum(Movement.amount).label("amount"))
+            .where(Movement.user_id == user_id, Movement.wallet_id == wallet_id,
+                Movement.kind == "standard", Movement.type == "expense",
+                Movement.date >= date_from, Movement.date <= date_to)
+            .group_by(bucket).order_by(bucket))
+        return result.mappings().all()
+
+    async def expenses_by_category(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                                   date_from: DateValue, date_to: DateValue):
+        from app.models.category import Category
+        from app.models.wallet_transaction import WalletTransaction as Movement
+        roots = select(Category.id.label("id"), Category.id.label("root_id"), Category.name.label("root_name")).where(
+            Category.user_id == user_id, Category.parent_id.is_(None)).cte("category_roots", recursive=True)
+        roots = roots.union_all(select(Category.id, roots.c.root_id, roots.c.root_name)
+            .join(roots, Category.parent_id == roots.c.id).where(Category.user_id == user_id))
+        total = func.sum(Movement.amount).label("amount")
+        result = await self.db.execute(select(roots.c.root_id.label("category_id"), roots.c.root_name.label("name"), total)
+            .join(Movement, Movement.category_id == roots.c.id)
+            .where(Movement.user_id == user_id, Movement.wallet_id == wallet_id,
+                Movement.kind == "standard", Movement.type == "expense",
+                Movement.date >= date_from, Movement.date <= date_to)
+            .group_by(roots.c.root_id, roots.c.root_name).order_by(total.desc(), roots.c.root_id))
+        return result.mappings().all()
+
+    async def monthly_movements(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                                date_from: DateValue, date_to: DateValue):
+        from app.models.wallet_transaction import WalletTransaction as Movement
+        month = func.to_char(Movement.date, "YYYY-MM")
+        result = await self.db.execute(select(month.label("month"),
+                func.sum(case((Movement.type == "income", Movement.amount), else_=0)).label("income"),
+                func.sum(case((Movement.type == "expense", Movement.amount), else_=0)).label("expenses"))
+            .where(Movement.user_id == user_id, Movement.wallet_id == wallet_id, Movement.kind == "standard",
+                Movement.date >= date_from, Movement.date <= date_to)
+            .group_by(month).order_by(month))
+        return result.mappings().all()
+
+    async def top_expenses(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                           date_from: DateValue, date_to: DateValue):
+        from app.models.category import Category
+        from app.models.wallet_transaction import WalletTransaction as Movement
+        result = await self.db.execute(select(Movement.id, Movement.label, Movement.amount, Movement.date,
+                Category.name.label("category_name"))
+            .join(Category, and_(Category.id == Movement.category_id, Category.user_id == Movement.user_id))
+            .where(Movement.user_id == user_id, Movement.wallet_id == wallet_id,
+                Movement.kind == "standard", Movement.type == "expense",
+                Movement.date >= date_from, Movement.date <= date_to)
+            .order_by(Movement.amount.desc(), Movement.date.desc(), Movement.id.desc()).limit(5))
+        return result.mappings().all()
+
+    async def activity(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                       date_from: DateValue, date_to: DateValue):
+        from app.models.wallet_transaction import WalletTransaction as Movement
+        result = await self.db.execute(select(Movement.date, func.count().label("count"))
+            .where(Movement.user_id == user_id, Movement.wallet_id == wallet_id, Movement.kind == "standard",
+                Movement.date >= date_from, Movement.date <= date_to)
+            .group_by(Movement.date).order_by(Movement.date))
+        return result.mappings().all()
+
+    async def category_breakdown(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                                  category_id: uuid.UUID | None, date_from: DateValue, date_to: DateValue):
+        from app.models.category import Category
+        from app.models.wallet_transaction import WalletTransaction as Movement
+        # Each direct child starts a branch; descendants keep that child's identity.
+        branches = select(Category.id.label("id"), Category.id.label("branch_id"),
+            Category.name.label("branch_name"), Category.position.label("branch_position")).where(
+                Category.user_id == user_id, Category.parent_id == category_id).cte("expense_branches", recursive=True)
+        branches = branches.union_all(select(Category.id, branches.c.branch_id, branches.c.branch_name, branches.c.branch_position)
+            .join(branches, Category.parent_id == branches.c.id).where(Category.user_id == user_id))
+        result = await self.db.execute(select(branches.c.branch_id.label("category_id"), branches.c.branch_name.label("name"),
+                func.coalesce(func.sum(Movement.amount), 0).label("amount"))
+            .outerjoin(Movement, and_(Movement.category_id == branches.c.id, Movement.user_id == user_id,
+                Movement.wallet_id == wallet_id, Movement.kind == "standard", Movement.type == "expense",
+                Movement.date >= date_from, Movement.date <= date_to))
+            .group_by(branches.c.branch_id, branches.c.branch_name, branches.c.branch_position)
+            .order_by(branches.c.branch_position, branches.c.branch_id))
+        return result.mappings().all()
+
+    async def direct_category_expenses(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
+                                       category_id: uuid.UUID, date_from: DateValue, date_to: DateValue) -> Decimal:
+        from app.models.wallet_transaction import WalletTransaction as Movement
+        return await self.db.scalar(select(func.coalesce(func.sum(Movement.amount), 0)).where(
+            Movement.user_id == user_id, Movement.wallet_id == wallet_id, Movement.category_id == category_id,
+            Movement.kind == "standard", Movement.type == "expense",
+            Movement.date >= date_from, Movement.date <= date_to))

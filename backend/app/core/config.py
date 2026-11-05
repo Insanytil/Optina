@@ -10,6 +10,9 @@ API_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
+    recurrence_worker_enabled: bool = True
+    recurrence_timezone: str = "Europe/Brussels"
+
     app_name: str = "MiniApp API"
     environment: str = "development"
 

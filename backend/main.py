@@ -1,22 +1,20 @@
 from fastapi import FastAPI
 
 from app.modules.auth.router.auth_router import router as auth_router
-
 from app.modules.wallet.router.wallet_router import router as wallet_router
-
 from app.modules.category.router.category_router import router as category_router
+from app.modules.transaction.router.transaction_router import router as transaction_router
+from app.modules.recurrence.router import router as recurrence_router
+from app.modules.wallet.overview import router as wallet_overview_router
 
-app = FastAPI()
+from app.modules.recurrence.worker import lifespan
+
+app = FastAPI(lifespan=lifespan)
+
+app.include_router(recurrence_router)
 app.include_router(auth_router)
+app.include_router(wallet_overview_router)
 app.include_router(wallet_router)
 app.include_router(category_router)
+app.include_router(transaction_router)
 
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}

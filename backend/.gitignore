@@ -33,3 +33,6 @@ junit.xml
 *.pid
 celerybeat-schedule*
 celerybeat.pid
+
+# Rapports locaux du générateur de démonstration
+/demo-data/

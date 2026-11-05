@@ -1,4 +1,11 @@
-import { Home, Wallet, FolderTree } from 'lucide-react'
+import {
+  Home,
+  Wallet,
+  FolderTree,
+  ArrowLeftRight,
+  Repeat2,
+  ChartNoAxesCombined,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FileRoutesByTo } from '@/routeTree.gen'
 
@@ -21,7 +28,10 @@ export const navigationGroups: readonly NavigationGroup[] = [
     label: 'Mon espace',
     items: [
       { label: 'Accueil', to: '/', icon: Home, exact: true },
+      { label: 'Vue globale', to: '/overview', icon: ChartNoAxesCombined },
       { label: 'Portefeuilles', to: '/wallets', icon: Wallet },
+      { label: 'Transactions', to: '/transactions', icon: ArrowLeftRight },
+      { label: 'Récurrences', to: '/recurrences', icon: Repeat2 },
       { label: 'Catégories', to: '/categories', icon: FolderTree },
     ],
   },

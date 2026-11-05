@@ -1,3 +1,4 @@
+import { walletKeys } from '@/features/wallets/api'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
@@ -36,7 +37,10 @@ export function MoveCategoryDialog({
       }),
     onSuccess: async () => {
       onMoved(parentId)
-      await client.invalidateQueries({ queryKey: categoryKeys.all })
+      await Promise.all([
+        client.invalidateQueries({ queryKey: categoryKeys.all }),
+        client.invalidateQueries({ queryKey: walletKeys.all }),
+      ])
     },
   })
   const siblings = categories

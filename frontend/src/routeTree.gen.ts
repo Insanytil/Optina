@@ -14,7 +14,12 @@ import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as GuestLoginRouteImport } from './routes/_guest/login'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
 import { Route as ProtectedCategoriesRouteImport } from './routes/_protected/categories'
+import { Route as ProtectedOverviewRouteImport } from './routes/_protected/overview'
+import { Route as ProtectedRecurrencesRouteImport } from './routes/_protected/recurrences'
+import { Route as ProtectedTransactionsRouteImport } from './routes/_protected/transactions'
 import { Route as ProtectedWalletsRouteImport } from './routes/_protected/wallets'
+import { Route as ProtectedWalletsIndexRouteImport } from './routes/_protected/wallets/index'
+import { Route as ProtectedWalletsWalletIdRouteImport } from './routes/_protected/wallets/$walletId'
 
 const GuestRoute = GuestRouteImport.update({
   id: '/_guest',
@@ -39,23 +44,58 @@ const ProtectedCategoriesRoute = ProtectedCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedOverviewRoute = ProtectedOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedRecurrencesRoute = ProtectedRecurrencesRouteImport.update({
+  id: '/recurrences',
+  path: '/recurrences',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedTransactionsRoute = ProtectedTransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 const ProtectedWalletsRoute = ProtectedWalletsRouteImport.update({
   id: '/wallets',
   path: '/wallets',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedWalletsIndexRoute = ProtectedWalletsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProtectedWalletsRoute,
+} as any)
+const ProtectedWalletsWalletIdRoute =
+  ProtectedWalletsWalletIdRouteImport.update({
+    id: '/$walletId',
+    path: '/$walletId',
+    getParentRoute: () => ProtectedWalletsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
   '/login': typeof GuestLoginRoute
   '/categories': typeof ProtectedCategoriesRoute
-  '/wallets': typeof ProtectedWalletsRoute
+  '/overview': typeof ProtectedOverviewRoute
+  '/recurrences': typeof ProtectedRecurrencesRoute
+  '/transactions': typeof ProtectedTransactionsRoute
+  '/wallets': typeof ProtectedWalletsRouteWithChildren
+  '/wallets/$walletId': typeof ProtectedWalletsWalletIdRoute
+  '/wallets/': typeof ProtectedWalletsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
   '/login': typeof GuestLoginRoute
   '/categories': typeof ProtectedCategoriesRoute
-  '/wallets': typeof ProtectedWalletsRoute
+  '/overview': typeof ProtectedOverviewRoute
+  '/recurrences': typeof ProtectedRecurrencesRoute
+  '/transactions': typeof ProtectedTransactionsRoute
+  '/wallets/$walletId': typeof ProtectedWalletsWalletIdRoute
+  '/wallets': typeof ProtectedWalletsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -63,22 +103,49 @@ export interface FileRoutesById {
   '/_protected': typeof ProtectedRouteWithChildren
   '/_guest/login': typeof GuestLoginRoute
   '/_protected/categories': typeof ProtectedCategoriesRoute
-  '/_protected/wallets': typeof ProtectedWalletsRoute
+  '/_protected/overview': typeof ProtectedOverviewRoute
+  '/_protected/recurrences': typeof ProtectedRecurrencesRoute
+  '/_protected/transactions': typeof ProtectedTransactionsRoute
+  '/_protected/wallets': typeof ProtectedWalletsRouteWithChildren
   '/_protected/': typeof ProtectedIndexRoute
+  '/_protected/wallets/$walletId': typeof ProtectedWalletsWalletIdRoute
+  '/_protected/wallets/': typeof ProtectedWalletsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/categories' | '/wallets'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/categories'
+    | '/overview'
+    | '/recurrences'
+    | '/transactions'
+    | '/wallets'
+    | '/wallets/$walletId'
+    | '/wallets/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/categories' | '/wallets'
+  to:
+    | '/'
+    | '/login'
+    | '/categories'
+    | '/overview'
+    | '/recurrences'
+    | '/transactions'
+    | '/wallets/$walletId'
+    | '/wallets'
   id:
     | '__root__'
     | '/_guest'
     | '/_protected'
     | '/_guest/login'
     | '/_protected/categories'
+    | '/_protected/overview'
+    | '/_protected/recurrences'
+    | '/_protected/transactions'
     | '/_protected/wallets'
     | '/_protected/'
+    | '/_protected/wallets/$walletId'
+    | '/_protected/wallets/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -123,12 +190,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedCategoriesRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/overview': {
+      id: '/_protected/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof ProtectedOverviewRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/recurrences': {
+      id: '/_protected/recurrences'
+      path: '/recurrences'
+      fullPath: '/recurrences'
+      preLoaderRoute: typeof ProtectedRecurrencesRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/transactions': {
+      id: '/_protected/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof ProtectedTransactionsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/wallets': {
       id: '/_protected/wallets'
       path: '/wallets'
       fullPath: '/wallets'
       preLoaderRoute: typeof ProtectedWalletsRouteImport
       parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/wallets/': {
+      id: '/_protected/wallets/'
+      path: '/'
+      fullPath: '/wallets/'
+      preLoaderRoute: typeof ProtectedWalletsIndexRouteImport
+      parentRoute: typeof ProtectedWalletsRoute
+    }
+    '/_protected/wallets/$walletId': {
+      id: '/_protected/wallets/$walletId'
+      path: '/$walletId'
+      fullPath: '/wallets/$walletId'
+      preLoaderRoute: typeof ProtectedWalletsWalletIdRouteImport
+      parentRoute: typeof ProtectedWalletsRoute
     }
   }
 }
@@ -143,15 +245,34 @@ const GuestRouteChildren: GuestRouteChildren = {
 
 const GuestRouteWithChildren = GuestRoute._addFileChildren(GuestRouteChildren)
 
+interface ProtectedWalletsRouteChildren {
+  ProtectedWalletsWalletIdRoute: typeof ProtectedWalletsWalletIdRoute
+  ProtectedWalletsIndexRoute: typeof ProtectedWalletsIndexRoute
+}
+
+const ProtectedWalletsRouteChildren: ProtectedWalletsRouteChildren = {
+  ProtectedWalletsWalletIdRoute: ProtectedWalletsWalletIdRoute,
+  ProtectedWalletsIndexRoute: ProtectedWalletsIndexRoute,
+}
+
+const ProtectedWalletsRouteWithChildren =
+  ProtectedWalletsRoute._addFileChildren(ProtectedWalletsRouteChildren)
+
 interface ProtectedRouteChildren {
   ProtectedCategoriesRoute: typeof ProtectedCategoriesRoute
-  ProtectedWalletsRoute: typeof ProtectedWalletsRoute
+  ProtectedOverviewRoute: typeof ProtectedOverviewRoute
+  ProtectedRecurrencesRoute: typeof ProtectedRecurrencesRoute
+  ProtectedTransactionsRoute: typeof ProtectedTransactionsRoute
+  ProtectedWalletsRoute: typeof ProtectedWalletsRouteWithChildren
   ProtectedIndexRoute: typeof ProtectedIndexRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedCategoriesRoute: ProtectedCategoriesRoute,
-  ProtectedWalletsRoute: ProtectedWalletsRoute,
+  ProtectedOverviewRoute: ProtectedOverviewRoute,
+  ProtectedRecurrencesRoute: ProtectedRecurrencesRoute,
+  ProtectedTransactionsRoute: ProtectedTransactionsRoute,
+  ProtectedWalletsRoute: ProtectedWalletsRouteWithChildren,
   ProtectedIndexRoute: ProtectedIndexRoute,
 }
 

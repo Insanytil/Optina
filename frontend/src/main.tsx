@@ -1,9 +1,12 @@
+import { initializeTheme } from '@/features/theme/theme'
 import { SessionProvider } from '@/features/auth/session-provider'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient, setAnonymousSession } from '@/features/auth/session'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import { getRouter } from './router'
+
+initializeTheme()
 
 const router = getRouter()
 window.addEventListener('auth:expired', () => {

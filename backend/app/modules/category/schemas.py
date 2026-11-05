@@ -11,12 +11,14 @@ CategoryName = Annotated[str, StringConstraints(strip_whitespace=True, min_lengt
 
 class CategoryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    wallet_ids: list[uuid.UUID] | None = Field(default=None, max_length=500)
     name: CategoryName
     parent_id: uuid.UUID | None = None
 
 
 class CategoryUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    wallet_ids: list[uuid.UUID] | None = Field(default=None, max_length=500)
     name: CategoryName
     parent_id: uuid.UUID | None = None
 
@@ -29,6 +31,7 @@ class CategoryMove(BaseModel):
 
 class CategoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    wallet_ids: list[uuid.UUID] | None = None
     id: uuid.UUID
     position: int = Field(default=0, ge=0)
     name: str

@@ -21,6 +21,7 @@ class CategoryServiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.db = AsyncMock()
         self.repo = AsyncMock()
+        self.repo.has_transactions.return_value = False
         self.service = CategoryService(self.db, self.repo)
         self.user_id = uuid4()
         self.root = category()
@@ -124,3 +125,11 @@ class CategoryServiceTests(unittest.IsolatedAsyncioTestCase):
         for payload in [{"name": " "}, {"name": "x" * 256}, {"name": "X", "user_id": str(uuid4())}, {"name": "X", "parent_id": "invalid"}]:
             with self.subTest(payload=payload), self.assertRaises(ValidationError):
                 CategoryCreate(**payload)
+
+    async def test_category_with_transactions_cannot_be_deleted(self):
+        self.repo.get_by_id.return_value = self.child
+        self.repo.has_children.return_value = False
+        self.repo.has_transactions.return_value = True
+        with self.assertRaises(CategoryHierarchyError):
+            await self.service.delete(user_id=self.user_id, category_id=self.child.id)
+        self.repo.delete.assert_not_awaited()

@@ -72,3 +72,41 @@ class WalletRepositoryTests(unittest.IsolatedAsyncioTestCase):
     async def test_delete_reports_success(self):
         self.db.scalar.return_value = self.wallet_id
         self.assertTrue(await self.repo.delete(wallet_id=self.wallet_id, user_id=self.user_id))
+
+    async def test_summary_is_owner_scoped_inclusive_and_excludes_opening_movements(self):
+        from datetime import date
+        self.db.execute = AsyncMock(return_value=MagicMock())
+        self.db.execute.return_value.one_or_none.return_value = None
+        result = await self.repo.get_summary(user_id=self.user_id, wallet_id=self.wallet_id,
+            date_from=date(2026, 1, 1), date_to=date(2026, 1, 31))
+        self.assertIsNone(result)
+        query = self.db.execute.call_args.args[0].compile(dialect=postgresql.dialect())
+        self.assertIn("LEFT OUTER JOIN wallet_transactions", str(query))
+        self.assertIn("wallet_transactions.user_id = wallets.user_id", str(query))
+        self.assertIn("wallet_transactions.date >=", str(query))
+        self.assertIn("wallet_transactions.date <=", str(query))
+        self.assertIn("standard", query.params.values())
+        self.assertIn(self.user_id, query.params.values())
+        self.assertIn(self.wallet_id, query.params.values())
+        self.db.scalars.assert_not_awaited()
+
+    async def test_analytics_queries_are_scoped_exclude_openings_and_aggregate_in_sql(self):
+        from datetime import date
+        self.db.execute = AsyncMock(return_value=MagicMock())
+        self.db.execute.return_value.mappings.return_value.all.return_value = []
+        args = dict(user_id=self.user_id, wallet_id=self.wallet_id, date_from=date(2026, 1, 1), date_to=date(2026, 1, 31))
+        for name in ["expenses_by_date", "expenses_by_category", "monthly_movements", "top_expenses", "activity"]:
+            with self.subTest(method=name):
+                extra = {"granularity": "day"} if name == "expenses_by_date" else {}
+                await getattr(self.repo, name)(**args, **extra)
+                query = self.db.execute.call_args.args[0].compile(dialect=postgresql.dialect())
+                self.assertIn(self.user_id, query.params.values())
+                self.assertIn(self.wallet_id, query.params.values())
+                self.assertIn("standard", query.params.values())
+                self.assertIn(date(2026, 1, 1), query.params.values())
+                self.assertIn(date(2026, 1, 31), query.params.values())
+                if name == "expenses_by_category":
+                    self.assertIn("WITH RECURSIVE category_roots", str(query))
+                    self.assertIn("GROUP BY", str(query))
+                if name == "top_expenses":
+                    self.assertIn(5, query.params.values())

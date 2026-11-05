@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 
 export interface Category {
+  wallet_ids?: string[] | null
   id: string
   position: number
   name: string
@@ -42,7 +43,11 @@ export function categoryPath(id: string, signal?: AbortSignal) {
 }
 
 export function saveCategory(
-  values: { name: string; parent_id: string | null },
+  values: {
+    name: string
+    parent_id: string | null
+    wallet_ids?: string[] | null
+  },
   id?: string,
 ) {
   return api<Category>(id ? `/categories/${id}` : '/categories', {
