@@ -13,11 +13,14 @@ import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as GuestLoginRouteImport } from './routes/_guest/login'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
+import { Route as ProtectedBudgetsRouteImport } from './routes/_protected/budgets'
 import { Route as ProtectedCategoriesRouteImport } from './routes/_protected/categories'
+import { Route as ProtectedForecastsRouteImport } from './routes/_protected/forecasts'
 import { Route as ProtectedOverviewRouteImport } from './routes/_protected/overview'
 import { Route as ProtectedRecurrencesRouteImport } from './routes/_protected/recurrences'
 import { Route as ProtectedTransactionsRouteImport } from './routes/_protected/transactions'
 import { Route as ProtectedWalletsRouteImport } from './routes/_protected/wallets'
+import { Route as ProtectedSettingsBudgetsRouteImport } from './routes/_protected/settings/budgets'
 import { Route as ProtectedWalletsIndexRouteImport } from './routes/_protected/wallets/index'
 import { Route as ProtectedWalletsWalletIdRouteImport } from './routes/_protected/wallets/$walletId'
 
@@ -39,9 +42,19 @@ const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedBudgetsRoute = ProtectedBudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 const ProtectedCategoriesRoute = ProtectedCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedForecastsRoute = ProtectedForecastsRouteImport.update({
+  id: '/forecasts',
+  path: '/forecasts',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedOverviewRoute = ProtectedOverviewRouteImport.update({
@@ -64,6 +77,12 @@ const ProtectedWalletsRoute = ProtectedWalletsRouteImport.update({
   path: '/wallets',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedSettingsBudgetsRoute =
+  ProtectedSettingsBudgetsRouteImport.update({
+    id: '/settings/budgets',
+    path: '/settings/budgets',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedWalletsIndexRoute = ProtectedWalletsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -79,21 +98,27 @@ const ProtectedWalletsWalletIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
   '/login': typeof GuestLoginRoute
+  '/budgets': typeof ProtectedBudgetsRoute
   '/categories': typeof ProtectedCategoriesRoute
+  '/forecasts': typeof ProtectedForecastsRoute
   '/overview': typeof ProtectedOverviewRoute
   '/recurrences': typeof ProtectedRecurrencesRoute
   '/transactions': typeof ProtectedTransactionsRoute
   '/wallets': typeof ProtectedWalletsRouteWithChildren
+  '/settings/budgets': typeof ProtectedSettingsBudgetsRoute
   '/wallets/$walletId': typeof ProtectedWalletsWalletIdRoute
   '/wallets/': typeof ProtectedWalletsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedIndexRoute
   '/login': typeof GuestLoginRoute
+  '/budgets': typeof ProtectedBudgetsRoute
   '/categories': typeof ProtectedCategoriesRoute
+  '/forecasts': typeof ProtectedForecastsRoute
   '/overview': typeof ProtectedOverviewRoute
   '/recurrences': typeof ProtectedRecurrencesRoute
   '/transactions': typeof ProtectedTransactionsRoute
+  '/settings/budgets': typeof ProtectedSettingsBudgetsRoute
   '/wallets/$walletId': typeof ProtectedWalletsWalletIdRoute
   '/wallets': typeof ProtectedWalletsIndexRoute
 }
@@ -102,12 +127,15 @@ export interface FileRoutesById {
   '/_guest': typeof GuestRouteWithChildren
   '/_protected': typeof ProtectedRouteWithChildren
   '/_guest/login': typeof GuestLoginRoute
+  '/_protected/budgets': typeof ProtectedBudgetsRoute
   '/_protected/categories': typeof ProtectedCategoriesRoute
+  '/_protected/forecasts': typeof ProtectedForecastsRoute
   '/_protected/overview': typeof ProtectedOverviewRoute
   '/_protected/recurrences': typeof ProtectedRecurrencesRoute
   '/_protected/transactions': typeof ProtectedTransactionsRoute
   '/_protected/wallets': typeof ProtectedWalletsRouteWithChildren
   '/_protected/': typeof ProtectedIndexRoute
+  '/_protected/settings/budgets': typeof ProtectedSettingsBudgetsRoute
   '/_protected/wallets/$walletId': typeof ProtectedWalletsWalletIdRoute
   '/_protected/wallets/': typeof ProtectedWalletsIndexRoute
 }
@@ -116,21 +144,27 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/budgets'
     | '/categories'
+    | '/forecasts'
     | '/overview'
     | '/recurrences'
     | '/transactions'
     | '/wallets'
+    | '/settings/budgets'
     | '/wallets/$walletId'
     | '/wallets/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/budgets'
     | '/categories'
+    | '/forecasts'
     | '/overview'
     | '/recurrences'
     | '/transactions'
+    | '/settings/budgets'
     | '/wallets/$walletId'
     | '/wallets'
   id:
@@ -138,12 +172,15 @@ export interface FileRouteTypes {
     | '/_guest'
     | '/_protected'
     | '/_guest/login'
+    | '/_protected/budgets'
     | '/_protected/categories'
+    | '/_protected/forecasts'
     | '/_protected/overview'
     | '/_protected/recurrences'
     | '/_protected/transactions'
     | '/_protected/wallets'
     | '/_protected/'
+    | '/_protected/settings/budgets'
     | '/_protected/wallets/$walletId'
     | '/_protected/wallets/'
   fileRoutesById: FileRoutesById
@@ -183,11 +220,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/budgets': {
+      id: '/_protected/budgets'
+      path: '/budgets'
+      fullPath: '/budgets'
+      preLoaderRoute: typeof ProtectedBudgetsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/categories': {
       id: '/_protected/categories'
       path: '/categories'
       fullPath: '/categories'
       preLoaderRoute: typeof ProtectedCategoriesRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/forecasts': {
+      id: '/_protected/forecasts'
+      path: '/forecasts'
+      fullPath: '/forecasts'
+      preLoaderRoute: typeof ProtectedForecastsRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/overview': {
@@ -216,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/wallets'
       fullPath: '/wallets'
       preLoaderRoute: typeof ProtectedWalletsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/budgets': {
+      id: '/_protected/settings/budgets'
+      path: '/settings/budgets'
+      fullPath: '/settings/budgets'
+      preLoaderRoute: typeof ProtectedSettingsBudgetsRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/wallets/': {
@@ -259,21 +317,27 @@ const ProtectedWalletsRouteWithChildren =
   ProtectedWalletsRoute._addFileChildren(ProtectedWalletsRouteChildren)
 
 interface ProtectedRouteChildren {
+  ProtectedBudgetsRoute: typeof ProtectedBudgetsRoute
   ProtectedCategoriesRoute: typeof ProtectedCategoriesRoute
+  ProtectedForecastsRoute: typeof ProtectedForecastsRoute
   ProtectedOverviewRoute: typeof ProtectedOverviewRoute
   ProtectedRecurrencesRoute: typeof ProtectedRecurrencesRoute
   ProtectedTransactionsRoute: typeof ProtectedTransactionsRoute
   ProtectedWalletsRoute: typeof ProtectedWalletsRouteWithChildren
   ProtectedIndexRoute: typeof ProtectedIndexRoute
+  ProtectedSettingsBudgetsRoute: typeof ProtectedSettingsBudgetsRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedBudgetsRoute: ProtectedBudgetsRoute,
   ProtectedCategoriesRoute: ProtectedCategoriesRoute,
+  ProtectedForecastsRoute: ProtectedForecastsRoute,
   ProtectedOverviewRoute: ProtectedOverviewRoute,
   ProtectedRecurrencesRoute: ProtectedRecurrencesRoute,
   ProtectedTransactionsRoute: ProtectedTransactionsRoute,
   ProtectedWalletsRoute: ProtectedWalletsRouteWithChildren,
   ProtectedIndexRoute: ProtectedIndexRoute,
+  ProtectedSettingsBudgetsRoute: ProtectedSettingsBudgetsRoute,
 }
 
 const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(

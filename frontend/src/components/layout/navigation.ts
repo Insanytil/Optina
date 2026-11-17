@@ -1,10 +1,13 @@
 import {
   Home,
+  Target,
   Wallet,
   FolderTree,
   ArrowLeftRight,
   Repeat2,
   ChartNoAxesCombined,
+  CalendarClock,
+  Settings2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FileRoutesByTo } from '@/routeTree.gen'
@@ -25,14 +28,26 @@ export interface NavigationGroup {
 /** Add future pages here, after creating their routes. */
 export const navigationGroups: readonly NavigationGroup[] = [
   {
-    label: 'Mon espace',
+    label: 'Visualisation',
     items: [
       { label: 'Accueil', to: '/', icon: Home, exact: true },
       { label: 'Vue globale', to: '/overview', icon: ChartNoAxesCombined },
-      { label: 'Portefeuilles', to: '/wallets', icon: Wallet },
       { label: 'Transactions', to: '/transactions', icon: ArrowLeftRight },
-      { label: 'Récurrences', to: '/recurrences', icon: Repeat2 },
+      { label: 'Suivi des budgets', to: '/budgets', icon: Target },
+      { label: 'Prévisions', to: '/forecasts', icon: CalendarClock },
+    ],
+  },
+  {
+    label: 'Paramétrage',
+    items: [
+      { label: 'Portefeuilles', to: '/wallets', icon: Wallet, exact: true },
       { label: 'Catégories', to: '/categories', icon: FolderTree },
+      {
+        label: 'Budgets de dépenses',
+        to: '/settings/budgets',
+        icon: Settings2,
+      },
+      { label: 'Récurrences', to: '/recurrences', icon: Repeat2 },
     ],
   },
 ]
