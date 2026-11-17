@@ -75,3 +75,23 @@ export function moveCategory(id: string, placement: CategoryPlacement) {
     body: JSON.stringify(placement),
   })
 }
+
+export interface CategorySearchScope {
+  walletId?: string
+  excludeId?: string
+  parentId?: string
+  rootOnly?: boolean
+}
+
+export function searchCategories(
+  query: string,
+  signal?: AbortSignal,
+  scope: CategorySearchScope = {},
+) {
+  const params = new URLSearchParams({ q: query, limit: '25' })
+  if (scope.walletId) params.set('wallet_id', scope.walletId)
+  if (scope.excludeId) params.set('exclude_id', scope.excludeId)
+  if (scope.parentId) params.set('parent_id', scope.parentId)
+  if (scope.rootOnly) params.set('root_only', 'true')
+  return api<Category[]>(`/categories/search?${params}`, { signal })
+}

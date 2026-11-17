@@ -1,3 +1,4 @@
+import { CollapsibleWidget } from '@/components/ui/collapsible-widget'
 import { ResponsiveChart } from '@/components/ui/responsive-chart'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -37,20 +38,20 @@ export function ForecastPanel({
   })
   const data = query.data
   return (
-    <section
-      className="space-y-4 rounded-xl border bg-card p-5"
-      aria-labelledby="forecast-title"
+    <CollapsibleWidget
+      title="Prévisions des récurrences"
+      description={
+        data
+          ? `Échéances à venir du ${dateLabel(data.date_from)} au ${dateLabel(data.date_to)}`
+          : 'Échéances à venir à compter d’aujourd’hui'
+      }
+      contentClassName="space-y-4 px-5 pb-5"
     >
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 id="forecast-title" className="font-semibold">
-            Vos prochaines échéances
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Le reste du mois en cours, puis les mois suivants. Récurrences
-            actives uniquement.
-          </p>
-        </div>
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Prévisions des récurrences actives. Choisissez leur horizon
+          ci-dessous.
+        </p>
         <div className="flex flex-wrap gap-2">
           {[1, 3, 6, 12].map((n) => (
             <Button
@@ -74,7 +75,7 @@ export function ForecastPanel({
             </Button>
           )}
         </div>
-      </header>
+      </div>
       {query.isPending ? (
         <p role="status" className="py-12 text-center text-muted-foreground">
           Calcul des échéances…
@@ -288,6 +289,6 @@ export function ForecastPanel({
           </>
         )
       )}
-    </section>
+    </CollapsibleWidget>
   )
 }

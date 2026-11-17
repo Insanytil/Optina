@@ -77,3 +77,32 @@ class CategoryRepositoryTests(unittest.IsolatedAsyncioTestCase):
         compiled = self.db.scalars.call_args.args[0].compile(dialect=postgresql.dialect())
         self.assertIn(self.user_id, compiled.params.values())
         self.assertIn("ORDER BY categories.position, categories.id", str(compiled))
+
+    async def test_search_is_owner_scoped_accent_insensitive_and_escapes_wildcards(self):
+        self.db.scalars.return_value.all.return_value=[]
+        await self.repo.search(user_id=self.user_id,query='Énergie 10%_',limit=25)
+        compiled=self.db.scalars.call_args.args[0].compile(dialect=postgresql.dialect())
+        sql=str(compiled)
+        values=list(compiled.params.values())
+        self.assertIn('WITH RECURSIVE category_search',sql)
+        self.assertIn('translate(',sql)
+        self.assertIn('categories.user_id =',sql)
+        self.assertIn(self.user_id,values)
+        self.assertIn('%energie%',values)
+        self.assertIn('%10!%!_%',values)
+        self.assertIn(25,values)
+
+    async def test_scoped_search_filters_wallet_ancestors_and_excluded_branches_before_limit(self):
+        wallet_id,excluded_id,parent_id=uuid4(),uuid4(),uuid4()
+        self.db.scalars.return_value.all.return_value=[]
+        await self.repo.search(user_id=self.user_id,query='eau',limit=10,wallet_id=wallet_id,exclude_id=excluded_id,parent_id=parent_id)
+        compiled=self.db.scalars.call_args.args[0].compile(dialect=postgresql.dialect())
+        sql=str(compiled)
+        self.assertIn('category_wallets.user_id =',sql)
+        self.assertIn('category_search.allowed IS true',sql)
+        self.assertIn('category_search.excluded IS false',sql)
+        self.assertIn('categories.parent_id =',sql)
+        self.assertIn(wallet_id,compiled.params.values())
+        self.assertIn(excluded_id,compiled.params.values())
+        self.assertIn(parent_id,compiled.params.values())
+        self.assertLess(sql.rindex('category_search.allowed IS true'),sql.rindex('LIMIT'))

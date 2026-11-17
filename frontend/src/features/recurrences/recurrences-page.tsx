@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Repeat2 } from 'lucide-react'
+import { ChartNoAxesCombined, Plus, Repeat2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,17 +17,16 @@ import {
   walletOptionsKey,
   transactionKeys,
 } from '@/features/transactions/api'
-import { walletKeys, formatBalance } from '@/features/wallets/api'
+import { walletKeys } from '@/features/wallets/api'
 import {
   recurrenceKeys,
   listRecurrences,
-  frequencyLabel,
   changeRecurrenceStatus,
   archiveRecurrence,
   type Recurrence,
 } from './api'
 import { RecurrenceForm } from './recurrence-form'
-import { ForecastPanel } from './forecast-panel'
+import { RecurrenceList } from './recurrence-list'
 
 export function RecurrencesPage({
   initialWalletId,
@@ -44,7 +43,10 @@ export function RecurrencesPage({
     queryFn: ({ signal }) => loadCategoryTree(signal),
   })
   const [selectedWallet, setSelectedWallet] = useState(initialWalletId ?? '')
-  const walletId = selectedWallet || wallets.data?.[0]?.id || ''
+  const walletId =
+    wallets.data?.find((wallet) => wallet.id === selectedWallet)?.id ??
+    wallets.data?.[0]?.id ??
+    ''
   const [busy, setBusy] = useState(false)
   const [editor, setEditor] = useState<Recurrence | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Recurrence | null>(null)
@@ -79,19 +81,43 @@ export function RecurrencesPage({
     <section className="mx-auto max-w-[1600px] space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Récurrences</h1>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Paramétrage
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Récurrences
+          </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Anticipez vos rentrées et vos charges régulières. Les transactions
-            sont ajoutées automatiquement chaque jour à 6 h, heure de Bruxelles.
+            Configurez vos rentrées et dépenses régulières : montant, catégorie
+            et calendrier. Les transactions sont ajoutées automatiquement chaque
+            jour à 6 h, heure de Bruxelles.
           </p>
         </div>
-        <Button
-          disabled={!walletId || !categories.data?.length}
-          onClick={() => setEditor('new')}
-        >
-          <Plus aria-hidden="true" />
-          Nouvelle récurrence
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="min-h-11"
+            disabled={!walletId}
+            nativeButton={false}
+            render={
+              <Link
+                to="/forecasts"
+                search={{ walletId: walletId || undefined }}
+              />
+            }
+          >
+            <ChartNoAxesCombined aria-hidden="true" />
+            Voir les prévisions
+          </Button>
+          <Button
+            className="min-h-11"
+            disabled={!walletId || !categories.data?.length}
+            onClick={() => setEditor('new')}
+          >
+            <Plus aria-hidden="true" />
+            Nouvelle récurrence
+          </Button>
+        </div>
       </header>
       {wallets.isPending ? (
         <p role="status">Chargement des portefeuilles…</p>
@@ -135,7 +161,6 @@ export function RecurrencesPage({
               pour créer une récurrence.
             </p>
           )}
-          <ForecastPanel key={walletId} walletId={walletId} />
           <div className="space-y-3">
             <h2 className="font-semibold">Rentrées et dépenses régulières</h2>
             <p className="text-xs text-muted-foreground">
@@ -168,65 +193,18 @@ export function RecurrencesPage({
                 </p>
               </div>
             ) : (
-              <ul className="grid gap-3 lg:grid-cols-2">
-                {rules.map((rule) => (
-                  <li
-                    key={rule.id}
-                    className="flex flex-wrap items-start justify-between gap-4 rounded-xl border bg-card p-4"
-                  >
-                    <div className="min-w-0">
-                      <h3 className="break-words font-medium">{rule.label}</h3>
-                      <p
-                        className={`mt-1 font-semibold tabular-nums ${rule.type === 'income' ? 'text-emerald-500' : ''}`}
-                      >
-                        {rule.type === 'income' ? '+' : '−'}
-                        {formatBalance(rule.amount)}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {frequencyLabel(rule)} ·{' '}
-                        {categories.data?.find((c) => c.id === rule.category_id)
-                          ?.name ?? 'Catégorie'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {!rule.is_active
-                          ? 'En pause'
-                          : rule.next_date
-                            ? `Prochaine échéance : ${new Date(`${rule.next_date}T12:00:00`).toLocaleDateString('fr-BE')}`
-                            : 'Terminée'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={mutation.isPending}
-                        onClick={() => setEditor(rule)}
-                      >
-                        Modifier
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={mutation.isPending || !rule.next_date}
-                        onClick={() => mutation.mutate({ rule })}
-                      >
-                        {rule.is_active ? 'Suspendre' : 'Reprendre'}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={mutation.isPending}
-                        onClick={() => {
-                          mutation.reset()
-                          setDeleting(rule)
-                        }}
-                      >
-                        Arrêter
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <RecurrenceList
+                key={walletId}
+                rules={rules}
+                categories={categories.data ?? []}
+                busy={mutation.isPending}
+                onEdit={setEditor}
+                onToggle={(rule) => mutation.mutate({ rule })}
+                onStop={(rule) => {
+                  mutation.reset()
+                  setDeleting(rule)
+                }}
+              />
             )}
           </div>
         </>

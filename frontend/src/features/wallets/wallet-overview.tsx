@@ -1,7 +1,13 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Pencil, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react'
+import {
+  Pencil,
+  Plus,
+  Settings2,
+  Trash2,
+  Wallet as WalletIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,6 +22,7 @@ import { WalletForm } from './wallet-form'
 import { DeleteWalletDialog } from './delete-wallet-dialog'
 
 export function WalletOverview({ home = false }: { home?: boolean }) {
+  const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [deleting, setDeleting] = useState<Wallet | null>(null)
   const [editor, setEditor] = useState<Wallet | 'new' | null>(null)
@@ -31,7 +38,9 @@ export function WalletOverview({ home = false }: { home?: boolean }) {
             {home ? 'Vos portefeuilles' : 'Portefeuilles'}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Retrouvez vos comptes et leurs soldes au même endroit.
+            {home
+              ? 'Retrouvez vos comptes et leurs soldes au même endroit.'
+              : 'Créez et paramétrez vos portefeuilles. Consultez leurs dépenses depuis l’accueil.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -44,9 +53,17 @@ export function WalletOverview({ home = false }: { home?: boolean }) {
               Vue globale
             </Button>
           )}
-          <Button onClick={() => setEditor('new')}>
-            <Plus aria-hidden="true" />
-            Créer un portefeuille
+          <Button
+            onClick={() =>
+              home ? void navigate({ to: '/wallets' }) : setEditor('new')
+            }
+          >
+            {home ? (
+              <Settings2 aria-hidden="true" />
+            ) : (
+              <Plus aria-hidden="true" />
+            )}
+            {home ? 'Gérer mes portefeuilles' : 'Créer un portefeuille'}
           </Button>
         </div>
       </header>
@@ -89,7 +106,9 @@ export function WalletOverview({ home = false }: { home?: boolean }) {
                 <Button
                   variant="outline"
                   className="mt-2"
-                  onClick={() => setEditor('new')}
+                  onClick={() =>
+                    home ? void navigate({ to: '/wallets' }) : setEditor('new')
+                  }
                 >
                   <Plus aria-hidden="true" />
                   Créer un portefeuille
@@ -118,25 +137,27 @@ export function WalletOverview({ home = false }: { home?: boolean }) {
                         </Link>
                       </h2>
                     </div>
-                    <div className="flex shrink-0 gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Modifier ${wallet.name}`}
-                        onClick={() => setEditor(wallet)}
-                      >
-                        <Pencil aria-hidden="true" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-destructive hover:text-destructive"
-                        aria-label={`Supprimer ${wallet.name}`}
-                        onClick={() => setDeleting(wallet)}
-                      >
-                        <Trash2 aria-hidden="true" />
-                      </Button>
-                    </div>
+                    {!home && (
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Modifier ${wallet.name}`}
+                          onClick={() => setEditor(wallet)}
+                        >
+                          <Pencil aria-hidden="true" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive hover:text-destructive"
+                          aria-label={`Supprimer ${wallet.name}`}
+                          onClick={() => setDeleting(wallet)}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <Link
                     to="/wallets/$walletId"

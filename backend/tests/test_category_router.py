@@ -127,3 +127,29 @@ class CategoryRouterTests(unittest.IsolatedAsyncioTestCase):
         self.service.move.side_effect = CategoryHierarchyError("Déplacement impossible.")
         status, _ = await self.request("POST", f"/categories/{self.category.id}/move", {"parent_id": None}, csrf=True)
         self.assertEqual(status, 409)
+
+    async def test_search_uses_session_owner_and_parses_query(self):
+        self.authenticate()
+        self.service.search.return_value=[self.category]
+        status,data=await self.request('GET','/categories/search',query=b'q=logement+eau&limit=20')
+        self.assertEqual(status,200)
+        self.assertEqual(data[0]['id'],str(self.category.id))
+        self.service.search.assert_awaited_once_with(user_id=self.user_id,query='logement eau',limit=20,wallet_id=None,exclude_id=None,parent_id=None,root_only=False)
+
+    async def test_search_is_authenticated_and_bounded(self):
+        status,_=await self.request('GET','/categories/search',query=b'q=test')
+        self.assertEqual(status,401)
+        self.authenticate()
+        for query in [b'limit=0',b'limit=51',b'q='+b'x'*101]:
+            status,_=await self.request('GET','/categories/search',query=query)
+            self.assertEqual(status,422)
+        self.service.search.assert_not_awaited()
+
+    async def test_search_forwards_wallet_and_hierarchy_constraints(self):
+        self.authenticate()
+        self.service.search.return_value=[]
+        wallet_id,excluded_id,parent_id=uuid4(),uuid4(),uuid4()
+        query=f'q=test&wallet_id={wallet_id}&exclude_id={excluded_id}&parent_id={parent_id}&root_only=false'.encode()
+        status,_=await self.request('GET','/categories/search',query=query)
+        self.assertEqual(status,200)
+        self.service.search.assert_awaited_once_with(user_id=self.user_id,query='test',limit=25,wallet_id=wallet_id,exclude_id=excluded_id,parent_id=parent_id,root_only=False)

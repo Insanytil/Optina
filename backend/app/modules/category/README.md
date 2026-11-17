@@ -33,3 +33,19 @@ Les montants utilisent Decimal. Le solde est le solde actuel tous mouvements
 confondus ; les rentrées, dépenses et résultats concernent la période demandée,
 hors mouvements d'ouverture. Les catégories sont regroupées par racine en
 incluant leurs descendants, indépendamment de leur disponibilité actuelle.
+
+# Recherche asynchrone
+
+`GET /categories/search?q=logement+eau&limit=25` recherche dans les chemins des
+catégories de l'utilisateur connecté. Tous les mots doivent correspondre ; les
+majuscules et les accents français sont ignorés. Les caractères `%` et `_` sont
+traités comme du texte. Le terme est limité à 100 caractères et les résultats
+à 50 au maximum (25 dans le filtre de récurrences).
+
+La recherche accepte également `wallet_id` (disponibilité héritée), `exclude_id`
+(exclut cette catégorie et ses descendants), `parent_id` (enfants directs) et
+`root_only=true` (racines uniquement). Ces contraintes sont appliquées avant la
+limite de résultats. Le même champ asynchrone avec debounce de 300 ms est utilisé
+pour les transactions, les récurrences, leurs filtres et le déplacement des catégories.
+Les filtres de lecture incluent les catégories historiques même si leur disponibilité
+actuelle a changé ; les formulaires d'écriture filtrent par portefeuille.

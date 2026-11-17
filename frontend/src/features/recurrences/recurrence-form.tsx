@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Category } from '@/features/categories/api'
-import { categoryOptions } from '@/features/transactions/category-options'
+import { CategorySearch } from '@/features/categories/category-search'
 import { transactionKeys } from '@/features/transactions/api'
 import { walletKeys } from '@/features/wallets/api'
 import { localToday } from '@/features/transactions/form-values'
@@ -42,7 +42,6 @@ export function RecurrenceForm({
     start_date: rule?.start_date ?? localToday(),
     end_date: rule?.end_date ?? null,
   }))
-  const categoryChoices = categoryOptions(categories, walletId)
   const mutation = useMutation({
     mutationFn: () =>
       saveRecurrence(
@@ -117,30 +116,16 @@ export function RecurrenceForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="rec-category">Catégorie</Label>
-          <select
+          <CategorySearch
             id="rec-category"
-            required
-            className={select}
             value={values.category_id}
-            onChange={(e) =>
-              setValues({ ...values, category_id: e.target.value })
-            }
-          >
-            <option value="">Choisir une catégorie</option>
-            {values.category_id &&
-              !categoryChoices.some(
-                (category) => category.id === values.category_id,
-              ) && (
-                <option value={values.category_id} disabled>
-                  Catégorie indisponible — choisissez une autre catégorie
-                </option>
-              )}
-            {categoryChoices.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+            onChange={(category_id) => setValues({ ...values, category_id })}
+            categories={categories}
+            scope={{ walletId }}
+            disabled={mutation.isPending}
+            placeholder="Choisir une catégorie…"
+            clearLabel="Effacer la catégorie"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="rec-frequency">Fréquence</Label>
@@ -239,7 +224,9 @@ export function RecurrenceForm({
           Annuler
         </Button>
         <Button
-          disabled={mutation.isPending || !categories.length}
+          disabled={
+            mutation.isPending || !categories.length || !values.category_id
+          }
           type="submit"
         >
           {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}

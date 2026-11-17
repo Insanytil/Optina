@@ -17,7 +17,7 @@ import type {
   Transaction,
   TransactionFilters,
 } from '@/features/transactions/api'
-import { categoryOptions } from '@/features/transactions/category-options'
+import { CategorySearch } from '@/features/categories/category-search'
 import { TransactionForm } from '@/features/transactions/transaction-form'
 import { DeleteTransactionDialog } from '@/features/transactions/delete-transaction-dialog'
 import { formatBalance } from './api'
@@ -108,22 +108,15 @@ export function WalletTransactions({
       <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="wallet-category-filter">Catégorie</Label>
-          <select
+          <CategorySearch
             id="wallet-category-filter"
-            className={`${selectClass} w-full`}
             value={categoryId}
-            onChange={(event) => {
-              setCategoryId(event.target.value)
+            onChange={(value) => {
+              setCategoryId(value)
               setPage(1)
             }}
-          >
-            <option value="">Toutes les catégories</option>
-            {categoryOptions(categories.data ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+            categories={categories.data ?? []}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="wallet-type-filter">Type</Label>

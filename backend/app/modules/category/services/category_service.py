@@ -141,3 +141,17 @@ class CategoryService:
         except Exception:
             await self.db.rollback()
             raise
+
+    async def search(self, *, user_id: uuid.UUID, query: str, limit: int = 25,
+                     wallet_id: uuid.UUID | None = None, exclude_id: uuid.UUID | None = None,
+                     parent_id: uuid.UUID | None = None, root_only: bool = False) -> list[CategoryResponse]:
+        if wallet_id is not None:
+            from app.modules.wallet.repository.wallet_repository import WalletRepository
+            if await WalletRepository(self.db).get_by_id(user_id=user_id, wallet_id=wallet_id) is None:
+                raise CategoryNotFoundError()
+        for identifier in (exclude_id, parent_id):
+            if identifier is not None:
+                await self.get_by_id(user_id=user_id, category_id=identifier)
+        items = await self.repository.search(user_id=user_id, query=query.strip(), limit=limit,
+            wallet_id=wallet_id, exclude_id=exclude_id, parent_id=parent_id, root_only=root_only)
+        return [CategoryResponse.model_validate(item) for item in items]

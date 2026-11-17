@@ -1,3 +1,4 @@
+import { CollapsibleWidget } from '@/components/ui/collapsible-widget'
 import { ResponsiveChart } from '@/components/ui/responsive-chart'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, ChartPie, ChevronRight } from 'lucide-react'
@@ -68,15 +69,14 @@ export function CategoryDrilldownChart({
     }))
     .filter((item) => item.value > 0)
   return (
-    <section
-      className="flex h-[420px] min-w-0 flex-col overflow-hidden rounded-xl border bg-card p-5"
-      aria-busy={query.isFetching}
+    <CollapsibleWidget
+      title="Répartition par catégorie"
+      description={`Transactions du ${period.date_from.split('-').reverse().join('/')} au ${period.date_to.split('-').reverse().join('/')}`}
+      icon={<ChartPie className="size-4 text-emerald-500" />}
+      className="overflow-hidden"
+      contentClassName="flex h-[350px] min-w-0 flex-col px-5 pb-5"
     >
-      <header className="mb-2 flex h-8 shrink-0 items-center justify-between gap-2">
-        <h2 className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold">
-          <ChartPie className="size-4 text-emerald-500" aria-hidden="true" />
-          Répartition par catégorie
-        </h2>
+      <header className="mb-2 flex h-8 shrink-0 items-center justify-end gap-2">
         <Button
           variant="ghost"
           size="sm"
@@ -283,6 +283,6 @@ export function CategoryDrilldownChart({
           </div>
         )
       )}
-    </section>
+    </CollapsibleWidget>
   )
 }

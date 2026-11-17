@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { categoryKeys, moveCategory } from './api'
 import type { Category } from './api'
+import { CategorySearch } from './category-search'
 import { CategoryParentPicker } from './category-parent-picker'
 
 export function MoveCategoryDialog({
@@ -43,9 +44,6 @@ export function MoveCategoryDialog({
       ])
     },
   })
-  const siblings = categories
-    .filter((item) => item.parent_id === parentId && item.id !== category.id)
-    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
   return (
     <Dialog
       open
@@ -88,20 +86,24 @@ export function MoveCategoryDialog({
           </fieldset>
           <div className="space-y-2">
             <Label htmlFor="category-position">Position</Label>
-            <select
+            <CategorySearch
+              key={parentId ?? 'root'}
               id="category-position"
               value={beforeId}
+              onChange={setBeforeId}
+              categories={categories}
+              scope={{
+                excludeId: category.id,
+                parentId: parentId ?? undefined,
+                rootOnly: parentId === null,
+              }}
               disabled={mutation.isPending}
-              onChange={(event) => setBeforeId(event.target.value)}
-              className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
-            >
-              <option value="">À la fin de la liste</option>
-              {siblings.map((item) => (
-                <option key={item.id} value={item.id}>
-                  Avant {item.name}
-                </option>
-              ))}
-            </select>
+              placeholder="À la fin de la liste"
+              clearLabel="À la fin de la liste"
+            />
+            <p className="text-xs text-muted-foreground">
+              Choisissez la catégorie devant laquelle insérer cet élément.
+            </p>
           </div>
           {mutation.error && (
             <p role="alert" className="text-sm text-destructive">

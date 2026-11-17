@@ -147,3 +147,21 @@ class RecurrencePostgresTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(created.is_active)
             self.assertEqual(await db.scalar(select(func.count()).select_from(WalletTransaction)),0)
             self.assertEqual(await db.scalar(select(Wallet.balance)),Decimal(0))
+
+    async def test_category_search_filters_inherited_availability_and_descendants(self):
+        from app.modules.category.repository.category_repository import CategoryRepository
+        from app.modules.category.services.category_service import CategoryService
+        from app.modules.category.schemas import CategoryCreate
+        async with self.sessions() as db:
+            wallet=Wallet(user_id=self.user_id,name='Second',balance=Decimal(0))
+            db.add(wallet)
+            await db.commit()
+            repo=CategoryRepository(db)
+            service=CategoryService(db,repo)
+            root=await service.create(user_id=self.user_id,payload=CategoryCreate(name='Énergie test',wallet_ids=[wallet.id]))
+            child=await service.create(user_id=self.user_id,payload=CategoryCreate(name='Eau',parent_id=root.id))
+            self.assertEqual(await repo.search(user_id=self.user_id,query='energie',wallet_id=self.wallet_id),[])
+            found=await repo.search(user_id=self.user_id,query='energie eau',wallet_id=wallet.id)
+            self.assertEqual([category.id for category in found],[child.id])
+            excluded=await repo.search(user_id=self.user_id,query='energie',exclude_id=root.id)
+            self.assertEqual(excluded,[])

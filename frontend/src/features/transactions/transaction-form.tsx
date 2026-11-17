@@ -1,4 +1,5 @@
-import { useForm, useWatch } from 'react-hook-form'
+import { CategorySearch } from '@/features/categories/category-search'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
@@ -12,7 +13,7 @@ import type { Category } from '@/features/categories/api'
 import { saveTransaction, transactionKeys } from './api'
 import type { Transaction } from './api'
 import { localToday, transactionFormSchema } from './form-values'
-import { categoryAvailable, categoryOptions } from './category-options'
+import { categoryAvailable } from './category-options'
 
 const selectClass =
   'h-10 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm disabled:opacity-50'
@@ -63,17 +64,6 @@ export function TransactionForm({
     },
   })
   const selectedWallet = useWatch({ control, name: 'wallet_id' })
-  const choices = categoryOptions(categories, selectedWallet)
-  if (
-    transaction?.category_id &&
-    transaction.wallet_id === selectedWallet &&
-    !choices.some((c) => c.id === transaction.category_id)
-  ) {
-    choices.push({
-      id: transaction.category_id,
-      label: `${categories.find((c) => c.id === transaction.category_id)?.name ?? 'Catégorie'} (historique)`,
-    })
-  }
   const mutation = useMutation({
     mutationFn: (values: {
       wallet_id: string
@@ -216,21 +206,25 @@ export function TransactionForm({
       {!opening && (
         <div className="space-y-2">
           <Label htmlFor="transaction-category">Catégorie</Label>
-          <select
-            id="transaction-category"
-            className={selectClass}
-            disabled={mutation.isPending}
-            aria-invalid={!!errors.category_id}
-            aria-describedby={described('category_id')}
-            {...register('category_id')}
-          >
-            <option value="">Choisir une catégorie</option>
-            {choices.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.label}
-              </option>
-            ))}
-          </select>
+          <Controller
+            control={control}
+            name="category_id"
+            render={({ field }) => (
+              <CategorySearch
+                id="transaction-category"
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                categories={categories}
+                scope={{ walletId: selectedWallet }}
+                disabled={mutation.isPending || !selectedWallet}
+                placeholder="Choisir une catégorie…"
+                clearLabel="Effacer la catégorie"
+                invalid={!!errors.category_id}
+                describedBy={described('category_id')}
+              />
+            )}
+          />
           {error('category_id')}
         </div>
       )}

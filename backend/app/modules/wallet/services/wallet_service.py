@@ -80,7 +80,7 @@ class WalletService:
             await self.db.commit()
         except IntegrityError:
             await self.db.rollback()
-            raise WalletInUseError("Ce portefeuille est lié à des transactions ou à des récurrences et ne peut pas être supprimé.") from None
+            raise WalletInUseError("Ce portefeuille est lié à des transactions, des récurrences ou des budgets et ne peut pas être supprimé.") from None
         except Exception:
             await self.db.rollback()
             raise

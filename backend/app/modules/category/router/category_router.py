@@ -31,6 +31,19 @@ async def category_tree(user: CurrentUser, service: CategoryServiceDep):
     return await service.tree(user_id=user.id)
 
 
+@router.get("/search", response_model=list[CategoryResponse])
+async def search_categories(user: CurrentUser, service: CategoryServiceDep,
+    q: Annotated[str, Query(max_length=100)] = "",
+    limit: Annotated[int, Query(ge=1, le=50)] = 25,
+    wallet_id: uuid.UUID | None = None, exclude_id: uuid.UUID | None = None,
+    parent_id: uuid.UUID | None = None, root_only: bool = False):
+    try:
+        return await service.search(user_id=user.id, query=q, limit=limit, wallet_id=wallet_id,
+            exclude_id=exclude_id, parent_id=parent_id, root_only=root_only)
+    except CategoryNotFoundError as error:
+        raise category_error(error) from None
+
+
 @router.get("/{category_id}/path", response_model=list[CategoryResponse])
 async def category_path(category_id: uuid.UUID, user: CurrentUser, service: CategoryServiceDep):
     try:

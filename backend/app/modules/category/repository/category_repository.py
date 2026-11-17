@@ -123,3 +123,35 @@ class CategoryRepository:
     async def validate_active_recurrences(self, *, user_id):
         from app.modules.category.availability import validate_active_recurrences
         await validate_active_recurrences(self.db, user_id)
+
+    async def search(self, *, user_id: uuid.UUID, query: str, limit: int = 25,
+                     wallet_id: uuid.UUID | None = None, exclude_id: uuid.UUID | None = None,
+                     parent_id: uuid.UUID | None = None, root_only: bool = False) -> list[Category]:
+        import unicodedata
+        from sqlalchemy import Text, and_, cast, literal, or_
+        from app.models.category_wallet import CategoryWallet
+        accents = 'àâäáãåçèéêëìíîïñòóôöõùúûüýÿ'
+        plain = ''.join(character for character in unicodedata.normalize('NFD', accents) if not unicodedata.combining(character))
+        allowed = or_(Category.restrict_wallets.is_(False), exists().where(
+            CategoryWallet.category_id == Category.id, CategoryWallet.user_id == user_id,
+            CategoryWallet.wallet_id == wallet_id)) if wallet_id is not None else literal(True)
+        excluded = Category.id == exclude_id if exclude_id is not None else literal(False)
+        tree = select(Category.id, cast(Category.name, Text).label('path'),
+            allowed.label('allowed'), excluded.label('excluded')).where(
+                Category.user_id == user_id, Category.parent_id.is_(None)).cte('category_search', recursive=True)
+        tree = tree.union_all(select(Category.id, tree.c.path + ' / ' + Category.name,
+                and_(tree.c.allowed, allowed), or_(tree.c.excluded, excluded))
+            .join(tree, Category.parent_id == tree.c.id).where(Category.user_id == user_id))
+        searchable = func.translate(func.replace(func.replace(func.lower(tree.c.path), 'œ', 'oe'), 'æ', 'ae'), accents, plain)
+        normalized = ''.join(character for character in unicodedata.normalize('NFD', query.casefold()) if not unicodedata.combining(character)).replace('œ','oe').replace('æ','ae')
+        statement = select(Category).join(tree, Category.id == tree.c.id).where(
+            Category.user_id == user_id, tree.c.allowed.is_(True), tree.c.excluded.is_(False))
+        if root_only:
+            statement = statement.where(Category.parent_id.is_(None))
+        elif parent_id is not None:
+            statement = statement.where(Category.parent_id == parent_id)
+        for token in normalized.split():
+            escaped = token.replace('!', '!!').replace('%', '!%').replace('_', '!_')
+            statement = statement.where(searchable.like(f'%{escaped}%', escape='!'))
+        rows = await self.db.scalars(statement.order_by(tree.c.path, Category.id).limit(limit))
+        return list(rows.all())

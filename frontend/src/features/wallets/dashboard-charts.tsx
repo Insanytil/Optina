@@ -1,3 +1,4 @@
+import { CollapsibleWidget } from '@/components/ui/collapsible-widget'
 import { ResponsiveChart } from '@/components/ui/responsive-chart'
 import type { ReactNode } from 'react'
 import {
@@ -46,20 +47,26 @@ function Panel({
   icon,
   children,
   className = '',
+  description,
+  widgetId,
 }: {
   title: string
+  widgetId?: string
   icon: ReactNode
   children: ReactNode
   className?: string
+  description?: string
 }) {
   return (
-    <section className={`min-w-0 rounded-xl border bg-card p-5 ${className}`}>
-      <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold">
-        {icon}
-        {title}
-      </h2>
+    <CollapsibleWidget
+      title={title}
+      widgetId={widgetId}
+      icon={icon}
+      description={description}
+      className={className}
+    >
       {children}
-    </section>
+    </CollapsibleWidget>
   )
 }
 function Empty({
@@ -130,6 +137,8 @@ export function DashboardCharts({
     <div className="grid gap-4 xl:grid-cols-2">
       <Panel
         title={dailyTitle}
+        widgetId="transaction-expenses-by-date"
+        description={`Transactions du ${formatDate(period.date_from)} au ${formatDate(period.date_to)}`}
         icon={
           <ChartColumnIncreasing
             className="size-4 text-emerald-500"
@@ -204,6 +213,11 @@ export function DashboardCharts({
       />
       <Panel
         title="Évolution mensuelle · 12 mois"
+        description={
+          data.monthly.length
+            ? `Transactions de ${monthLabel(data.monthly[0].month)} à ${monthLabel(data.monthly.at(-1)!.month)}`
+            : 'Historique des transactions sur douze mois'
+        }
         icon={
           <TrendingUp className="size-4 text-emerald-500" aria-hidden="true" />
         }
@@ -288,6 +302,7 @@ export function DashboardCharts({
       </Panel>
       <Panel
         title="Top 5 des dépenses"
+        description={`Transactions du ${formatDate(period.date_from)} au ${formatDate(period.date_to)}`}
         icon={<Trophy className="size-4 text-amber-500" aria-hidden="true" />}
       >
         {data.top_expenses.length === 0 ? (
@@ -317,6 +332,7 @@ export function DashboardCharts({
       </Panel>
       <Panel
         title="Activité · 90 jours"
+        description={`Transactions du ${formatDate(data.activity_from)} au ${formatDate(data.activity_to)}`}
         icon={
           <CalendarDays
             className="size-4 text-emerald-500"
