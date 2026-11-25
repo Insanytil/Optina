@@ -112,6 +112,20 @@ class CategoryRepository:
         return bool(await self.db.scalar(select(exists().where(
             WalletTransaction.user_id == user_id, WalletTransaction.category_id == category_id))))
 
+    async def has_live_recurrences(self, *, user_id: uuid.UUID, category_id: uuid.UUID) -> bool:
+        from app.models.recurrence import Recurrence
+        return bool(await self.db.scalar(select(exists().where(
+            Recurrence.user_id == user_id, Recurrence.category_id == category_id, Recurrence.archived.is_(False)))))
+
+    async def purge_archived_recurrences(self, *, user_id: uuid.UUID, category_id: uuid.UUID) -> None:
+        """Archived rules are hidden history; drop them (and their receipts) so the category can go."""
+        from app.models.recurrence import Recurrence, RecurrenceOccurrence
+        from app.models.wallet_transaction import WalletTransaction
+        ids = select(Recurrence.id).where(Recurrence.user_id == user_id, Recurrence.category_id == category_id,
+            Recurrence.archived.is_(True), ~exists().where(WalletTransaction.recurrence_id == Recurrence.id))
+        await self.db.execute(delete(RecurrenceOccurrence).where(RecurrenceOccurrence.recurrence_id.in_(ids)))
+        await self.db.execute(delete(Recurrence).where(Recurrence.id.in_(ids)))
+
     async def is_available(self, *, user_id: uuid.UUID, category_id: uuid.UUID, wallet_id: uuid.UUID) -> bool:
         from app.modules.category.availability import available, graph
         return available(await graph(self.db, user_id), category_id, wallet_id)

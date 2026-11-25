@@ -100,6 +100,9 @@ class CategoryService:
                 raise CategoryHierarchyError("Déplacez ou supprimez les sous-catégories avant de supprimer cette catégorie.")
             if await self.repository.has_transactions(user_id=user_id, category_id=category_id):
                 raise CategoryHierarchyError("Cette catégorie contient des transactions et ne peut pas être supprimée.")
+            if await self.repository.has_live_recurrences(user_id=user_id, category_id=category_id):
+                raise CategoryHierarchyError("Une récurrence utilise cette catégorie. Supprimez-la ou changez sa catégorie avant de continuer.")
+            await self.repository.purge_archived_recurrences(user_id=user_id, category_id=category_id)
             if not await self.repository.delete(user_id=user_id, category_id=category_id):
                 raise CategoryNotFoundError()
             await self.db.commit()
