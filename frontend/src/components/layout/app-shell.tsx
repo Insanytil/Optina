@@ -30,7 +30,7 @@ export function AppShell({
         <div
           id="main-content"
           tabIndex={-1}
-          className="flex-1 py-2 pr-2 outline-none"
+          className="flex-1 p-5 outline-none"
         >
           {children}
         </div>
