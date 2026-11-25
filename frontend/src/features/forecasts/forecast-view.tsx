@@ -20,8 +20,6 @@ import { MonthlyTable } from './monthly-table'
 import { UpcomingByMonth } from './upcoming-by-month'
 import { useForecast } from './use-forecast'
 
-const panelHeight = 'lg:h-[392px]'
-
 function ForecastSkeleton() {
   return (
     <div
@@ -100,7 +98,7 @@ export function ForecastView({
       ) : (
         <>
           <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <Card size="sm" className={panelHeight}>
+            <Card size="sm" className="lg:h-[392px]">
               <CardHeader>
                 <CardTitle>Solde projeté</CardTitle>
               </CardHeader>
@@ -110,7 +108,7 @@ export function ForecastView({
                 <MonthlyChart months={monthViews} />
               </CardContent>
             </Card>
-            <Card size="sm" className={`max-h-[392px] ${panelHeight}`}>
+            <Card size="sm" className="lg:h-[392px]">
               <CardHeader>
                 <CardTitle>Prochaines échéances</CardTitle>
               </CardHeader>

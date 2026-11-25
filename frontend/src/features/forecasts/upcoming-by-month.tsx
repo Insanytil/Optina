@@ -20,16 +20,19 @@ function OccurrenceRow({ occurrence }: { occurrence: ForecastOccurrence }) {
   const late = occurrence.date !== occurrence.scheduled_date
   return (
     <li className="flex justify-between gap-3 border-t py-1.5 first:border-t-0">
-      <span className="min-w-0">
-        <span className="mr-2 inline-block w-5 tabular-nums text-muted-foreground">
+      {/* Day in its own column so long labels wrap under the label. */}
+      <span className="flex min-w-0 gap-2">
+        <span className="w-5 shrink-0 tabular-nums text-muted-foreground">
           {formatDay(occurrence.date)}
         </span>
-        {occurrence.label}
-        {late && (
-          <span className="block pl-7 text-xs text-muted-foreground">
-            En retard, prévue le {formatDate(occurrence.scheduled_date)}
-          </span>
-        )}
+        <span className="min-w-0">
+          {occurrence.label}
+          {late && (
+            <span className="block text-xs text-muted-foreground">
+              En retard, prévue le {formatDate(occurrence.scheduled_date)}
+            </span>
+          )}
+        </span>
       </span>
       <span className={`shrink-0 tabular-nums ${amountTone(amount)}`}>
         {formatSignedCents(amount)}
