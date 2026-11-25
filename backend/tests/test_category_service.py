@@ -22,6 +22,7 @@ class CategoryServiceTests(unittest.IsolatedAsyncioTestCase):
         self.db = AsyncMock()
         self.repo = AsyncMock()
         self.repo.has_transactions.return_value = False
+        self.repo.has_live_recurrences.return_value = False
         self.service = CategoryService(self.db, self.repo)
         self.user_id = uuid4()
         self.root = category()
@@ -104,6 +105,22 @@ class CategoryServiceTests(unittest.IsolatedAsyncioTestCase):
         await self.service.delete(user_id=self.user_id, category_id=self.child.id)
         self.repo.delete.assert_awaited_once_with(user_id=self.user_id, category_id=self.child.id)
         self.db.commit.assert_awaited_once()
+
+    async def test_delete_purges_archived_recurrences_first(self):
+        self.repo.get_by_id.return_value = self.child
+        self.repo.has_children.return_value = False
+        self.repo.delete.return_value = True
+        await self.service.delete(user_id=self.user_id, category_id=self.child.id)
+        self.repo.purge_archived_recurrences.assert_awaited_once_with(user_id=self.user_id, category_id=self.child.id)
+
+    async def test_delete_refuses_category_used_by_live_recurrence(self):
+        self.repo.get_by_id.return_value = self.child
+        self.repo.has_children.return_value = False
+        self.repo.has_live_recurrences.return_value = True
+        with self.assertRaises(CategoryHierarchyError):
+            await self.service.delete(user_id=self.user_id, category_id=self.child.id)
+        self.repo.purge_archived_recurrences.assert_not_awaited()
+        self.repo.delete.assert_not_awaited()
 
     async def test_failed_commit_rolls_back(self):
         self.repo.create.return_value = self.root
