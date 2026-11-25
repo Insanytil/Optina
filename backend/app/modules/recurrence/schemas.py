@@ -72,3 +72,17 @@ class ForecastResponse(BaseModel):
     minimum_balance: Decimal
     months: list[ForecastMonth]
     occurrences: list[ForecastOccurrence]
+
+
+UPCOMING_MAX_DAYS = 62
+
+
+class UpcomingOccurrence(ForecastOccurrence):
+    wallet_id: uuid.UUID
+    wallet_name: str
+
+
+class UpcomingResponse(BaseModel):
+    date_from: date
+    date_to: date
+    occurrences: list[UpcomingOccurrence]

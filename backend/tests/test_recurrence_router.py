@@ -72,6 +72,22 @@ class RecurrenceRouterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(status,422)
         self.service.forecast.assert_not_awaited()
 
+    async def test_upcoming_period_is_validated(self):
+        self.authenticate()
+        for query in (b"from=2026-03-01&to=2026-02-01", b"from=2026-01-01&to=2026-04-01", b"from=2026-01-01"):
+            status,_ = await self.request('GET','/recurrences/upcoming',query=query)
+            self.assertEqual(status,422)
+        self.service.upcoming.assert_not_awaited()
+
+    async def test_upcoming_uses_session_owner(self):
+        from app.modules.recurrence.schemas import UpcomingResponse
+        self.authenticate()
+        self.service.upcoming.return_value = UpcomingResponse(date_from='2026-11-30', date_to='2027-01-03', occurrences=[])
+        status,data = await self.request('GET','/recurrences/upcoming',query=b"from=2026-11-30&to=2027-01-03")
+        self.assertEqual(status,200)
+        self.assertEqual(data['occurrences'],[])
+        self.assertEqual(self.service.upcoming.await_args.args[0],self.user_id)
+
     async def test_client_cannot_inject_owner_or_cursor(self):
         self.authenticate()
         for key,value in [('user_id',str(uuid4())),('next_index',0)]:

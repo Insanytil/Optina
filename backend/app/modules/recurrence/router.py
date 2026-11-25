@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +8,7 @@ from fastapi import HTTPException
 from app.db.session import get_async_session
 from app.modules.auth.dependencies import CurrentUser, CsrfProtectedSession
 from app.modules.recurrence.service import RecurrenceService
-from app.modules.recurrence.schemas import RecurrenceResponse, RecurrenceWrite, RecurrenceCreate, RecurrenceStatus, ForecastResponse
+from app.modules.recurrence.schemas import RecurrenceResponse, RecurrenceWrite, RecurrenceCreate, RecurrenceStatus, ForecastResponse, UpcomingResponse, UPCOMING_MAX_DAYS
 
 router = APIRouter(prefix="/recurrences", tags=["recurrences"])
 
@@ -34,6 +35,13 @@ async def list_rules(user: CurrentUser, service: Service, wallet_id: uuid.UUID |
 @router.get("/forecast", response_model=ForecastResponse)
 async def forecast(user: CurrentUser, service: Service, wallet_id: uuid.UUID, months: Annotated[int, Query(ge=1, le=12)] = 3):
     return await service.forecast(user.id, wallet_id, months)
+
+
+@router.get("/upcoming", response_model=UpcomingResponse)
+async def upcoming(user: CurrentUser, service: Service, date_from: Annotated[date, Query(alias="from")], date_to: Annotated[date, Query(alias="to")]):
+    if date_to < date_from or (date_to - date_from).days > UPCOMING_MAX_DAYS:
+        raise HTTPException(422, f"La période doit être croissante et couvrir au plus {UPCOMING_MAX_DAYS} jours.")
+    return await service.upcoming(user.id, date_from, date_to)
 
 
 @router.post("", response_model=RecurrenceResponse, status_code=201)

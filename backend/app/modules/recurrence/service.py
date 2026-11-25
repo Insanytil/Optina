@@ -16,7 +16,8 @@ from app.models.wallet_transaction import WalletTransaction
 from app.modules.recurrence.clock import daily_window
 from app.modules.recurrence.repository import RecurrenceRepository
 from app.modules.recurrence.schedule import first_index, next_date
-from app.modules.recurrence.schemas import RecurrenceResponse, RecurrenceWrite, ForecastResponse
+from app.models.wallet import Wallet
+from app.modules.recurrence.schemas import RecurrenceResponse, RecurrenceWrite, ForecastResponse, UpcomingOccurrence, UpcomingResponse
 from app.modules.wallet.repository.wallet_repository import WalletRepository
 
 
@@ -149,21 +150,37 @@ class RecurrenceService:
         today = await business_today(self.db)
         y, m = divmod(today.year * 12 + today.month - 1 + months - 1, 12)
         end = date(y, m + 1, monthrange(y, m + 1)[1])
+        events = await self.upcoming_events(await self.repository.list_for_user(user_id, wallet_id), today, end)
+        response = build_forecast(today, end, wallets[0].balance, events)
+        await self.db.commit()  # Release the read lock promptly.
+        return response
+
+    async def upcoming_events(self, rules, today: date, end: date) -> list[dict]:
+        """Occurrences still to generate up to `end`, sorted by effective date.
+
+        Overdue occurrences not generated yet are due today (catch-up)."""
         events = []
-        for rule in await self.repository.list_for_user(user_id, wallet_id):
+        for rule in rules:
             if not rule.is_active:
                 continue
             recorded = await self.repository.recorded_dates(rule.id, rule.next_date, end)
             index = rule.next_index
             while (scheduled := next_date(rule.start_date, rule.frequency_unit, rule.interval, index, rule.end_date)) and scheduled <= end:
                 if scheduled not in recorded:
-                    events.append(dict(recurrence_id=rule.id, label=rule.label, type=rule.type,
+                    events.append(dict(recurrence_id=rule.id, wallet_id=rule.wallet_id, label=rule.label, type=rule.type,
                         amount=rule.amount, scheduled_date=scheduled, date=max(today, scheduled)))
                 index += 1
         events.sort(key=lambda event: (event['date'], str(event['recurrence_id'])))
-        response = build_forecast(today, end, wallets[0].balance, events)
-        await self.db.commit()  # Release the read lock promptly.
-        return response
+        return events
+
+    async def upcoming(self, user_id, date_from: date, date_to: date) -> UpcomingResponse:
+        """Upcoming occurrences across all of the user's wallets (read-only, no locks)."""
+        today = await business_today(self.db)
+        events = await self.upcoming_events(await self.repository.list_for_user(user_id), today, date_to)
+        names = dict((await self.db.execute(select(Wallet.id, Wallet.name).where(Wallet.user_id == user_id))).all())
+        return UpcomingResponse(date_from=date_from, date_to=date_to, occurrences=[
+            UpcomingOccurrence(**event, wallet_name=names.get(event['wallet_id'], ''))
+            for event in events if event['date'] >= date_from])
 
 
 def build_forecast(today, end, balance, events):

@@ -91,3 +91,36 @@ class ForecastTests(unittest.TestCase):
         result = build_forecast(date(2026,1,1),date(2026,1,31),Decimal(0),[
             self.event(2,'expense','100'),self.event(2,'income','100')])
         self.assertEqual(result.minimum_balance, 0)
+
+
+class UpcomingTests(unittest.IsolatedAsyncioTestCase):
+    def rule(self, **kw):
+        values = dict(id=uuid4(), wallet_id=uuid4(), label='Loyer', type='expense', amount=Decimal('900'),
+            start_date=date(2026,1,5), next_date=date(2026,1,5), next_index=0,
+            frequency_unit='month', interval=1, end_date=None, is_active=True)
+        return SimpleNamespace(**{**values, **kw})
+
+    def service(self, recorded=()):
+        service = RecurrenceService(AsyncMock(spec=AsyncSession))
+        service.repository = AsyncMock()
+        service.repository.recorded_dates.return_value = set(recorded)
+        return service
+
+    async def test_events_skip_inactive_and_recorded_and_catch_up_overdue(self):
+        active, paused = self.rule(), self.rule(is_active=False)
+        events = await self.service([date(2026,2,5)]).upcoming_events([active, paused], date(2026,1,20), date(2026,3,31))
+        self.assertEqual([(e['scheduled_date'], e['date']) for e in events],
+            [(date(2026,1,5), date(2026,1,20)), (date(2026,3,5), date(2026,3,5))])
+        self.assertTrue(all(e['wallet_id'] == active.wallet_id for e in events))
+
+    async def test_upcoming_spans_wallets_names_them_and_respects_bounds(self):
+        first, second = self.rule(start_date=date(2026,2,1), next_date=date(2026,2,1)), self.rule(label='Salaire', type='income', start_date=date(2026,2,25), next_date=date(2026,2,25))
+        service = self.service()
+        service.repository.list_for_user.return_value = [first, second]
+        names = Mock(); names.all.return_value = [(first.wallet_id, 'Courant'), (second.wallet_id, 'Épargne')]
+        service.db.execute.return_value = names
+        with patch('app.modules.recurrence.service.business_today', AsyncMock(return_value=date(2026,1,15))):
+            result = await service.upcoming(uuid4(), date(2026,2,10), date(2026,3,9))
+        self.assertEqual(service.repository.list_for_user.await_args.args[1:], ())
+        self.assertEqual([(o.label, o.date, o.wallet_name) for o in result.occurrences],
+            [('Salaire', date(2026,2,25), 'Épargne'), ('Loyer', date(2026,3,1), 'Courant')])
