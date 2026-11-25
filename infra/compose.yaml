@@ -25,6 +25,36 @@ services:
       timeout: 5s
       retries: 5
 
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: Optina-pgadmin
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@optina.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?PGADMIN_DEFAULT_PASSWORD is required}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+
+    ports:
+      - ${PGADMIN_PORT:-5050}:80
+
+    # Serveur pré-enregistré : on passe par le réseau Docker (hôte « postgres », port interne 5432).
+    configs:
+      - source: pgadmin_servers
+        target: /pgadmin4/servers.json
+      - source: pgadmin_pgpass
+        target: /pgpass
+        uid: "5050"
+        gid: "5050"
+        mode: 0600
+
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # mailpit:
   #   image: axllent/mailpit:latest
   #   container_name: Optina-mailpit
@@ -55,8 +85,31 @@ services:
 
   #   restart: unless-stopped
 
+configs:
+  pgadmin_servers:
+    content: |
+      {
+        "Servers": {
+          "1": {
+            "Name": "Optina",
+            "Group": "Servers",
+            "Host": "postgres",
+            "Port": 5432,
+            "MaintenanceDB": "${POSTGRES_DB}",
+            "Username": "${POSTGRES_USER}",
+            "PassFile": "/pgpass",
+            "SSLMode": "prefer"
+          }
+        }
+      }
+  pgadmin_pgpass:
+    content: |
+      postgres:5432:*:${POSTGRES_USER}:${POSTGRES_PASSWORD}
+
 volumes:
   postgres_data:
     name: Optina-database-data
+  pgadmin_data:
+    name: Optina-pgadmin-data
   # redis_data:
   #   name: Optina-redis-data
