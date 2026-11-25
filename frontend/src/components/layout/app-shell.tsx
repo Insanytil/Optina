@@ -24,16 +24,13 @@ export function AppShell({
       </a>
       <AppSidebar user={user} />
       <SidebarInset className="min-w-0">
-        <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4 sm:px-6">
+        <header className="flex h-10 shrink-0 items-center border-b px-2">
           <SidebarTrigger aria-label="Ouvrir ou fermer le menu" />
-          <span className="text-sm font-medium text-muted-foreground">
-            Mon espace
-          </span>
         </header>
         <div
           id="main-content"
           tabIndex={-1}
-          className="flex-1 p-4 outline-none md:p-6"
+          className="flex-1 py-2 pr-2 outline-none"
         >
           {children}
         </div>
@@ -41,3 +38,4 @@ export function AppShell({
     </SidebarProvider>
   )
 }
+
