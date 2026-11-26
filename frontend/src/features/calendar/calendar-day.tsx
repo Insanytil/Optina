@@ -223,11 +223,13 @@ function DayDetails({
   )
 }
 
-const cellClass = (day: Day) =>
+const cellClass = (day: Day, isToday: boolean) =>
   cn(
     'flex h-full min-h-16 w-full flex-col overflow-hidden rounded-md border p-1 text-left',
-    !day.inMonth && 'opacity-40',
-    day.isPast && 'bg-muted/40',
+    // Days still ahead stand out; past ones fade into the background.
+    day.isPast ? 'border-transparent opacity-45' : 'bg-card shadow-xs',
+    !day.inMonth && !day.isPast && 'opacity-60',
+    isToday && 'border-primary bg-primary/10 ring-1 ring-primary',
   )
 
 function DayNumber({ day, isToday }: { day: Day; isToday: boolean }) {
@@ -235,7 +237,7 @@ function DayNumber({ day, isToday }: { day: Day; isToday: boolean }) {
     <span
       className={cn(
         'flex size-5 items-center justify-center rounded-full text-xs',
-        isToday && 'bg-primary font-semibold text-primary-foreground',
+        isToday && 'size-6 bg-primary text-sm font-bold text-primary-foreground',
       )}
     >
       {Number(day.date.slice(8))}
@@ -254,16 +256,25 @@ export function CalendarDay({
 }) {
   const colorOf: ColorOf = (occurrence) =>
     occurrence.wallet_id ? colors.get(occurrence.wallet_id) : undefined
-  const number = <DayNumber day={day} isToday={day.date === today} />
+  const isToday = day.date === today
+  const number = <DayNumber day={day} isToday={isToday} />
   if (day.occurrences.length === 0)
-    return <div className={cellClass(day)}>{number}</div>
+    return (
+      <div
+        className={cellClass(day, isToday)}
+        aria-current={isToday ? 'date' : undefined}
+      >
+        {number}
+      </div>
+    )
 
   const summary = summarizeDay(day.occurrences)
   const ordered = [...summary.incomes, ...summary.expenses]
   return (
     <Popover>
       <PopoverTrigger
-        className={cn(cellClass(day), 'cursor-pointer hover:bg-muted')}
+        className={cn(cellClass(day, isToday), 'cursor-pointer hover:bg-muted')}
+        aria-current={isToday ? 'date' : undefined}
         aria-label={`${formatDate(day.date)} : ${plural(ordered.length)}, net ${formatCents(summary.net)}`}
       >
         {number}
