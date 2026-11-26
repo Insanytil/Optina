@@ -2,7 +2,7 @@ import uuid
 from datetime import date as DateValue
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
@@ -53,6 +53,12 @@ class TransactionRepository:
             clauses.append(WalletTransaction.date >= params.date_from)
         if params.date_to:
             clauses.append(WalletTransaction.date <= params.date_to)
+        if params.q and params.q.strip():
+            clauses.append(WalletTransaction.label.ilike(f"%{params.q.strip()}%"))
+        if params.origin == "recurring":
+            clauses.append(WalletTransaction.recurrence_id.is_not(None))
+        elif params.origin == "manual":
+            clauses.append(WalletTransaction.recurrence_id.is_(None))
         return clauses
 
     async def list_for_user(self, *, user_id: uuid.UUID, params: TransactionListParams) -> list[WalletTransaction]:
@@ -62,6 +68,11 @@ class TransactionRepository:
 
     async def count_for_user(self, *, user_id: uuid.UUID, params: TransactionListParams) -> int:
         return await self.db.scalar(select(func.count()).select_from(WalletTransaction).where(*self.filters(user_id=user_id, params=params))) or 0
+
+    async def net_for_user(self, *, user_id: uuid.UUID, params: TransactionListParams) -> Decimal:
+        signed = case((WalletTransaction.type == TransactionType.INCOME, WalletTransaction.amount), else_=-WalletTransaction.amount)
+        return await self.db.scalar(select(func.coalesce(func.sum(signed), 0))
+            .where(*self.filters(user_id=user_id, params=params))) or Decimal(0)
 
     async def delete(self, transaction: WalletTransaction) -> None:
         await self.db.delete(transaction)

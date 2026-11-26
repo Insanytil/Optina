@@ -3,11 +3,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from app.core.pagination import PagePaginatedResponse
 from app.modules.auth.dependencies import CsrfProtectedSession, CurrentUser
 from app.modules.transaction.dependencies import TransactionServiceDep
 from app.modules.transaction.exceptions import TransactionNotFoundError, TransactionValidationError
-from app.modules.transaction.schemas import TransactionCreate, TransactionListParams, TransactionResponse, TransactionUpdate
+from app.modules.transaction.schemas import TransactionPageResponse, TransactionCreate, TransactionListParams, TransactionResponse, TransactionUpdate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -18,7 +17,7 @@ def transaction_error(error: TransactionNotFoundError | TransactionValidationErr
     return HTTPException(status_code=409, detail=str(error))
 
 
-@router.get("", response_model=PagePaginatedResponse[TransactionResponse])
+@router.get("", response_model=TransactionPageResponse)
 async def list_transactions(user: CurrentUser, service: TransactionServiceDep, params: Annotated[TransactionListParams, Query()]):
     try:
         return await service.list_for_user(user_id=user.id, params=params)

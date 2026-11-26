@@ -227,7 +227,7 @@ class WalletRepository:
 
     async def category_breakdown(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
                                   category_id: uuid.UUID | None, date_from: DateValue, date_to: DateValue,
-                                  origin: str = "all"):
+                                  origin: str = "all", type: str = "expense"):
         from app.models.category import Category
         from app.models.wallet_transaction import WalletTransaction as Movement
         # Each direct child starts a branch; descendants keep that child's identity.
@@ -239,7 +239,7 @@ class WalletRepository:
         result = await self.db.execute(select(branches.c.branch_id.label("category_id"), branches.c.branch_name.label("name"),
                 func.coalesce(func.sum(Movement.amount), 0).label("amount"))
             .outerjoin(Movement, and_(Movement.category_id == branches.c.id, Movement.user_id == user_id,
-                Movement.wallet_id == wallet_id, Movement.kind == "standard", Movement.type == "expense",
+                Movement.wallet_id == wallet_id, Movement.kind == "standard", Movement.type == type,
                 Movement.date >= date_from, Movement.date <= date_to, *origin_filter(Movement, origin)))
             .group_by(branches.c.branch_id, branches.c.branch_name, branches.c.branch_position)
             .order_by(branches.c.branch_position, branches.c.branch_id))
@@ -247,9 +247,9 @@ class WalletRepository:
 
     async def direct_category_expenses(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
                                        category_id: uuid.UUID, date_from: DateValue, date_to: DateValue,
-                                       origin: str = "all") -> Decimal:
+                                       origin: str = "all", type: str = "expense") -> Decimal:
         from app.models.wallet_transaction import WalletTransaction as Movement
         return await self.db.scalar(select(func.coalesce(func.sum(Movement.amount), 0)).where(
             Movement.user_id == user_id, Movement.wallet_id == wallet_id, Movement.category_id == category_id,
-            Movement.kind == "standard", Movement.type == "expense",
+            Movement.kind == "standard", Movement.type == type,
             Movement.date >= date_from, Movement.date <= date_to, *origin_filter(Movement, origin)))

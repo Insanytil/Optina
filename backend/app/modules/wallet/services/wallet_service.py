@@ -172,7 +172,7 @@ class WalletService:
         path = []
         direct = Decimal("0.00")
         args = dict(user_id=user_id, wallet_id=wallet_id, category_id=params.category_id,
-            date_from=params.date_from, date_to=params.date_to, origin=params.origin)
+            date_from=params.date_from, date_to=params.date_to, origin=params.origin, type=params.type)
         if params.category_id is not None:
             category_service = CategoryService(self.db, CategoryRepository(self.db))
             path = await category_service.path(user_id=user_id, category_id=params.category_id)

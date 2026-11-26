@@ -4,12 +4,12 @@ from decimal import Decimal
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.pagination import PagePaginatedResponse, PagePaginationMeta
+from app.core.pagination import PagePaginationMeta
 from app.models.wallet_transaction import TransactionKind, TransactionType
 from app.modules.category.repository.category_repository import CategoryRepository
 from app.modules.transaction.exceptions import TransactionNotFoundError, TransactionValidationError
 from app.modules.transaction.repository.transaction_repository import TransactionRepository
-from app.modules.transaction.schemas import TransactionCreate, TransactionListParams, TransactionResponse, TransactionUpdate
+from app.modules.transaction.schemas import TransactionCreate, TransactionListParams, TransactionPageResponse, TransactionResponse, TransactionUpdate
 from app.modules.wallet.repository.wallet_repository import WalletRepository
 
 
@@ -21,14 +21,15 @@ class TransactionService:
     def __init__(self, db: AsyncSession, repository: TransactionRepository, wallets: WalletRepository, categories: CategoryRepository):
         self.db, self.repository, self.wallets, self.categories = db, repository, wallets, categories
 
-    async def list_for_user(self, *, user_id: uuid.UUID, params: TransactionListParams) -> PagePaginatedResponse[TransactionResponse]:
+    async def list_for_user(self, *, user_id: uuid.UUID, params: TransactionListParams) -> TransactionPageResponse:
         if params.wallet_id and await self.wallets.get_by_id(user_id=user_id, wallet_id=params.wallet_id) is None:
             raise TransactionNotFoundError()
         if params.category_id and await self.categories.get_by_id(user_id=user_id, category_id=params.category_id) is None:
             raise TransactionNotFoundError()
         total = await self.repository.count_for_user(user_id=user_id, params=params)
         items = await self.repository.list_for_user(user_id=user_id, params=params)
-        return PagePaginatedResponse[TransactionResponse](items=[TransactionResponse.model_validate(item) for item in items],
+        net = await self.repository.net_for_user(user_id=user_id, params=params)
+        return TransactionPageResponse(net=net, items=[TransactionResponse.model_validate(item) for item in items],
             pagination=PagePaginationMeta(page=params.page, page_size=params.page_size, total=total,
                 total_pages=(total + params.page_size - 1) // params.page_size))
 

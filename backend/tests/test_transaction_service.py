@@ -112,6 +112,7 @@ class TransactionServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_list_builds_metadata_and_preserves_all_filters(self):
         params = TransactionListParams(type="income", kind="standard", page=2)
         self.repo.count_for_user.return_value = 21
+        self.repo.net_for_user.return_value = Decimal("-12.50")
         self.repo.list_for_user.return_value = [self.transaction]
         result = await self.service.list_for_user(user_id=self.user_id, params=params)
         self.assertEqual(result.pagination.total_pages, 2)

@@ -47,7 +47,7 @@ class WalletCategoryBreakdownTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.direct_amount, Decimal("1.23"))
         self.assertEqual([item.name for item in response.path], ["Dépenses", "Santé"])
         self.repo.category_breakdown.assert_awaited_once_with(user_id=self.user_id, wallet_id=self.wallet_id,
-            category_id=self.parent_id, date_from=params.date_from, date_to=params.date_to, origin="all")
+            category_id=self.parent_id, date_from=params.date_from, date_to=params.date_to, origin="all", type="expense")
 
     async def test_leaf_keeps_direct_amount_without_inventing_children(self):
         self.repo.category_breakdown.return_value = []
