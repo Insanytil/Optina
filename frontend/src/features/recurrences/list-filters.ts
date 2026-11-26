@@ -1,7 +1,8 @@
 import { categoryPaths } from '@/features/categories/category-paths'
-export { categoryPaths } from '@/features/categories/category-paths'
 import type { Category } from '@/features/categories/api'
 import type { Recurrence } from './api'
+
+export { categoryPaths } from '@/features/categories/category-paths'
 
 export interface RecurrenceFilters {
   search: string

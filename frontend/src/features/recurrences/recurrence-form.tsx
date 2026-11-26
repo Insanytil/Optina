@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,29 +8,29 @@ import { CategorySearch } from '@/features/categories/category-search'
 import { transactionKeys } from '@/features/transactions/api'
 import { walletKeys } from '@/features/wallets/api'
 import { localToday } from '@/features/transactions/form-values'
-import {
-  frequencies,
-  recurrenceKeys,
-  saveRecurrence,
-  type Recurrence,
-  type RecurrenceValues,
-} from './api'
+import { frequencies, recurrenceKeys, saveRecurrence } from './api'
+import type { Recurrence, RecurrenceValues } from './api'
 
 export function RecurrenceForm({
   rule,
   walletId,
   categories,
   onClose,
+  onCancel,
   onBusy,
+  onDirtyChange,
 }: {
   rule?: Recurrence
   walletId: string
   categories: Category[]
+  /** Called after a successful save. */
   onClose: () => void
+  onCancel: () => void
   onBusy: (busy: boolean) => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const client = useQueryClient()
-  const [values, setValues] = useState<RecurrenceValues>(() => ({
+  const [initial] = useState<RecurrenceValues>(() => ({
     wallet_id: walletId,
     category_id: rule?.category_id ?? '',
     label: rule?.label ?? '',
@@ -42,6 +42,11 @@ export function RecurrenceForm({
     start_date: rule?.start_date ?? localToday(),
     end_date: rule?.end_date ?? null,
   }))
+  const [values, setValues] = useState(initial)
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial)
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
+  const today = localToday()
+  const startDay = Number(values.start_date.slice(8, 10))
   const mutation = useMutation({
     mutationFn: () =>
       saveRecurrence(
@@ -60,20 +65,24 @@ export function RecurrenceForm({
           (queryKey) => client.invalidateQueries({ queryKey }),
         ),
       )
+      onDirtyChange(false)
       onClose()
     },
   })
   const select = 'h-9 w-full rounded-md border bg-background px-3 text-sm'
   return (
     <form
-      className="space-y-4"
+      className="flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault()
         onBusy(true)
         mutation.mutate()
       }}
     >
-      <fieldset disabled={mutation.isPending} className="space-y-4">
+      <fieldset
+        disabled={mutation.isPending}
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4"
+      >
         <div className="space-y-2">
           <Label htmlFor="rec-label">Libellé</Label>
           <Input
@@ -157,10 +166,12 @@ export function RecurrenceForm({
               </option>
             ))}
           </select>
-          <p className="text-xs text-muted-foreground">
-            4 semaines = 28 jours. Les échéances peuvent tomber deux fois dans
-            un même mois.
-          </p>
+          {values.frequency_unit === 'week' && values.interval === 4 && (
+            <p className="text-xs text-muted-foreground">
+              4 semaines = 28 jours. Les échéances peuvent tomber deux fois dans
+              un même mois.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
@@ -188,12 +199,17 @@ export function RecurrenceForm({
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Les transactions sont ajoutées à 6 h, heure de Bruxelles. Les
-          échéances passées seront rattrapées au prochain traitement. En fin de
-          mois, le dernier jour disponible est utilisé.
-        </p>
-        {rule && (
+        {values.start_date < today && (
+          <p className="text-xs text-muted-foreground">
+            Les échéances passées seront ajoutées au prochain traitement, à 6 h.
+          </p>
+        )}
+        {values.frequency_unit !== 'week' && startDay >= 29 && (
+          <p className="text-xs text-muted-foreground">
+            Les mois plus courts, l’échéance tombe le dernier jour du mois.
+          </p>
+        )}
+        {rule && dirty && (
           <p className="text-xs text-muted-foreground">
             Les transactions déjà générées restent inchangées. Pour changer le
             calendrier, choisissez une nouvelle première échéance future.
@@ -208,18 +224,18 @@ export function RecurrenceForm({
             onChange={(e) => setValues({ ...values, note: e.target.value })}
           />
         </div>
+        {mutation.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {mutation.error.message}
+          </p>
+        )}
       </fieldset>
-      {mutation.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {mutation.error.message}
-        </p>
-      )}
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 border-t px-5 py-3">
         <Button
           type="button"
           variant="outline"
           disabled={mutation.isPending}
-          onClick={onClose}
+          onClick={onCancel}
         >
           Annuler
         </Button>

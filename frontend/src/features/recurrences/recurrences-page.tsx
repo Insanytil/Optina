@@ -1,16 +1,25 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChartNoAxesCombined, Plus, Repeat2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { categoryKeys, loadCategoryTree } from '@/features/categories/api'
 import {
   loadWalletOptions,
@@ -23,8 +32,8 @@ import {
   listRecurrences,
   changeRecurrenceStatus,
   archiveRecurrence,
-  type Recurrence,
 } from './api'
+import type { Recurrence } from './api'
 import { RecurrenceForm } from './recurrence-form'
 import { RecurrenceList } from './recurrence-list'
 
@@ -49,6 +58,23 @@ export function RecurrencesPage({
     ''
   const [busy, setBusy] = useState(false)
   const [editor, setEditor] = useState<Recurrence | 'new' | null>(null)
+  // Where to go once the user confirms dropping unsaved changes.
+  const [pendingEditor, setPendingEditor] = useState<
+    Recurrence | 'new' | null | false
+  >(false)
+  const dirty = useRef(false)
+  const onDirtyChange = useCallback((value: boolean) => {
+    dirty.current = value
+  }, [])
+  /** Opens, switches or closes the editor, asking first if edits would be lost. */
+  function goTo(next: Recurrence | 'new' | null) {
+    if (busy) return
+    if (dirty.current) {
+      setPendingEditor(next)
+      return
+    }
+    setEditor(next)
+  }
   const [deleting, setDeleting] = useState<Recurrence | null>(null)
   const query = useQuery({
     queryKey: ['recurrences', 'list', walletId],
@@ -77,8 +103,33 @@ export function RecurrencesPage({
     },
   })
   const rules = query.data ?? []
+  const walletColor = wallets.data?.find((w) => w.id === walletId)?.color
+  const walletSelect = (
+    <div className="relative">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-3 size-2.5 -translate-y-1/2 rounded-full"
+        style={{ backgroundColor: walletColor ?? 'var(--primary)' }}
+      />
+      <select
+        aria-label="Portefeuille"
+        className="h-9 w-max max-w-56 rounded-md border bg-background pr-3 pl-7 text-sm"
+        value={walletId}
+        onChange={(e) => {
+          setSelectedWallet(e.target.value)
+          mutation.reset()
+        }}
+      >
+        {wallets.data?.map((w) => (
+          <option key={w.id} value={w.id}>
+            {w.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
   return (
-    <section className="mx-auto max-w-[1600px] space-y-5">
+    <section className="mx-auto w-full max-w-[1600px] space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -88,9 +139,8 @@ export function RecurrencesPage({
             Récurrences
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Configurez vos rentrées et dépenses régulières : montant, catégorie
-            et calendrier. Les transactions sont ajoutées automatiquement chaque
-            jour à 6 h, heure de Bruxelles.
+            Vos rentrées et dépenses régulières, ajoutées automatiquement chaque
+            jour à 6 h.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -112,7 +162,7 @@ export function RecurrencesPage({
           <Button
             className="min-h-11"
             disabled={!walletId || !categories.data?.length}
-            onClick={() => setEditor('new')}
+            onClick={() => goTo('new')}
           >
             <Plus aria-hidden="true" />
             Nouvelle récurrence
@@ -133,24 +183,6 @@ export function RecurrencesPage({
         </p>
       ) : (
         <>
-          <div className="max-w-sm space-y-2">
-            <Label htmlFor="rec-wallet">Portefeuille</Label>
-            <select
-              id="rec-wallet"
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              value={walletId}
-              onChange={(e) => {
-                setSelectedWallet(e.target.value)
-                mutation.reset()
-              }}
-            >
-              {wallets.data.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </div>
           {categories.isError && <p role="alert">{categories.error.message}</p>}
           {categories.data?.length === 0 && (
             <p className="text-sm text-muted-foreground">
@@ -162,11 +194,6 @@ export function RecurrencesPage({
             </p>
           )}
           <div className="space-y-3">
-            <h2 className="font-semibold">Rentrées et dépenses régulières</h2>
-            <p className="text-xs text-muted-foreground">
-              Une suspension ignore les échéances pendant la pause. La reprise
-              conserve le calendrier initial.
-            </p>
             {mutation.error && (
               <p role="alert" className="text-sm text-destructive">
                 {mutation.error.message}
@@ -182,23 +209,27 @@ export function RecurrencesPage({
                 </Button>
               </div>
             ) : !rules.length ? (
-              <div className="rounded-xl border border-dashed p-10 text-center">
-                <Repeat2
-                  className="mx-auto mb-3 size-7 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <p>Aucune récurrence pour ce portefeuille.</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Commencez par votre salaire, votre loyer ou un abonnement.
-                </p>
-              </div>
+              <>
+                {walletSelect}
+                <div className="rounded-xl border border-dashed p-10 text-center">
+                  <Repeat2
+                    className="mx-auto mb-3 size-7 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <p>Aucune récurrence pour ce portefeuille.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Commencez par votre salaire, votre loyer ou un abonnement.
+                  </p>
+                </div>
+              </>
             ) : (
               <RecurrenceList
                 key={walletId}
                 rules={rules}
                 categories={categories.data ?? []}
                 busy={mutation.isPending}
-                onEdit={setEditor}
+                toolbarStart={walletSelect}
+                onEdit={goTo}
                 onToggle={(rule) => mutation.mutate({ rule })}
                 onStop={(rule) => {
                   mutation.reset()
@@ -209,27 +240,29 @@ export function RecurrencesPage({
           </div>
         </>
       )}
-      <Dialog
+      <Sheet
         open={editor !== null}
         onOpenChange={(open) => {
-          if (!open && !busy) setEditor(null)
+          if (!open) goTo(null)
         }}
       >
-        <DialogContent
-          className="max-h-[90svh] overflow-y-auto sm:max-w-lg"
+        <SheetContent
+          className="w-full gap-0 p-0 sm:max-w-md"
           showCloseButton={!busy}
         >
-          <DialogHeader>
-            <DialogTitle>
-              {editor === 'new'
-                ? 'Nouvelle récurrence'
-                : 'Modifier la récurrence'}
-            </DialogTitle>
-            <DialogDescription>
-              Définissez le montant et le calendrier des prochaines
-              transactions.
-            </DialogDescription>
-          </DialogHeader>
+          <SheetHeader className="gap-0.5 border-b px-5 py-4">
+            <SheetDescription className="truncate text-xs">
+              {editor && editor !== 'new'
+                ? editor.type === 'income'
+                  ? 'Rentrée'
+                  : 'Dépense'
+                : 'Nouvelle récurrence'}{' '}
+              · {wallets.data?.find((w) => w.id === walletId)?.name}
+            </SheetDescription>
+            <SheetTitle className="truncate pr-8 text-lg">
+              {editor === 'new' ? 'Nouvelle récurrence' : editor?.label}
+            </SheetTitle>
+          </SheetHeader>
           {editor && categories.data && (
             <RecurrenceForm
               key={editor === 'new' ? `new-${walletId}` : editor.id}
@@ -237,52 +270,79 @@ export function RecurrencesPage({
               walletId={walletId}
               categories={categories.data}
               onBusy={setBusy}
+              onDirtyChange={onDirtyChange}
+              onCancel={() => goTo(null)}
               onClose={() => {
                 setBusy(false)
                 setEditor(null)
               }}
             />
           )}
-        </DialogContent>
-      </Dialog>
-      <Dialog
+        </SheetContent>
+      </Sheet>
+      <AlertDialog
+        open={pendingEditor !== false}
+        onOpenChange={(open) => {
+          if (!open) setPendingEditor(false)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Abandonner les modifications ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Les changements de cette récurrence n’ont pas été enregistrés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuer la modification</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                dirty.current = false
+                if (pendingEditor !== false) setEditor(pendingEditor)
+                setPendingEditor(false)
+              }}
+            >
+              Abandonner
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
         open={!!deleting}
         onOpenChange={(open) => {
           if (!open && !mutation.isPending) setDeleting(null)
         }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Arrêter « {deleting?.label} » ?</DialogTitle>
-            <DialogDescription>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arrêter « {deleting?.label} » ?</AlertDialogTitle>
+            <AlertDialogDescription>
               Les prochaines échéances seront annulées. Les transactions déjà
               générées seront conservées. Cette action est définitive.
-            </DialogDescription>
-          </DialogHeader>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
           {mutation.error && (
             <p role="alert" className="text-sm text-destructive">
               {mutation.error.message}
             </p>
           )}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              disabled={mutation.isPending}
-              onClick={() => setDeleting(null)}
-            >
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mutation.isPending}>
               Annuler
-            </Button>
+            </AlertDialogCancel>
             <Button
+              variant="destructive"
               disabled={mutation.isPending}
               onClick={() =>
                 deleting && mutation.mutate({ rule: deleting, archive: true })
               }
             >
-              Arrêter la récurrence
+              {mutation.isPending ? 'Arrêt…' : 'Arrêter la récurrence'}
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }
