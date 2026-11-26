@@ -47,13 +47,3 @@ async def validate_active_recurrences(db, user_id):
         if not available(categories, rule.category_id, rule.wallet_id):
             raise CategoryHierarchyError(f'La récurrence « {rule.label} » utilise cette catégorie dans un portefeuille exclu. Modifiez-la ou arrêtez-la avant de continuer.')
 
-    from app.models.budget import Budget, BudgetVersion
-    invalid = await db.scalar(select(Budget.id).join(Category, Category.id == Budget.category_id)
-        .where(Budget.user_id == user_id, Category.parent_id.is_not(None)).limit(1))
-    if invalid is not None:
-        raise CategoryHierarchyError('Cette catégorie porte un objectif. Conservez-la comme catégorie principale ou modifiez ses objectifs avant de la déplacer.')
-
-    invalid_version = await db.scalar(select(BudgetVersion.id).join(Category,Category.id==BudgetVersion.category_id)
-        .where(BudgetVersion.user_id==user_id,Category.parent_id.is_not(None)).limit(1))
-    if invalid_version is not None:
-        raise CategoryHierarchyError('Cette catégorie porte un budget répétitif. Conservez-la comme catégorie principale.')

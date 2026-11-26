@@ -98,8 +98,7 @@ class CategoryRepositoryTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("GROUP BY", str(compiled))
         self.assertIn("wallet_transactions.category_id IS NOT NULL", str(sql[0]))
         self.assertIn("recurrences.archived IS false", str(sql[1]))
-        # Budget series are counted once, however many periods they span.
-        self.assertIn("count(DISTINCT coalesce(budgets.series_id, budgets.id))", str(sql[2]))
+        self.assertIn("FROM budgets", str(sql[2]))
 
     async def test_search_is_owner_scoped_accent_insensitive_and_escapes_wildcards(self):
         self.db.scalars.return_value.all.return_value=[]

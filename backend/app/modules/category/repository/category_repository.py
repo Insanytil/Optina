@@ -124,8 +124,7 @@ class CategoryRepository:
             "recurrences": select(Recurrence.category_id, func.count())
                 .where(Recurrence.user_id == user_id, Recurrence.archived.is_(False))
                 .group_by(Recurrence.category_id),
-            # A budget series spans many periods; count it once.
-            "budgets": select(Budget.category_id, func.count(func.coalesce(Budget.series_id, Budget.id).distinct()))
+            "budgets": select(Budget.category_id, func.count())
                 .where(Budget.user_id == user_id).group_by(Budget.category_id),
         }
         usage: dict[uuid.UUID, dict[str, int]] = {}
@@ -133,6 +132,12 @@ class CategoryRepository:
             for category_id, count in (await self.db.execute(query)).all():
                 usage.setdefault(category_id, {})[key] = count
         return usage
+
+    async def budget_name(self, *, user_id: uuid.UUID, category_id: uuid.UUID) -> str | None:
+        """The name of a budget on this category, if any (budgets block deletion)."""
+        from app.models.budget import Budget
+        return await self.db.scalar(select(Budget.name).where(
+            Budget.user_id == user_id, Budget.category_id == category_id).order_by(Budget.name).limit(1))
 
     async def has_live_recurrences(self, *, user_id: uuid.UUID, category_id: uuid.UUID) -> bool:
         from app.models.recurrence import Recurrence

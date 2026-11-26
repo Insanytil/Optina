@@ -100,6 +100,9 @@ class CategoryService:
                 raise CategoryHierarchyError("Déplacez ou supprimez les sous-catégories avant de supprimer cette catégorie.")
             if await self.repository.has_transactions(user_id=user_id, category_id=category_id):
                 raise CategoryHierarchyError("Cette catégorie contient des transactions et ne peut pas être supprimée.")
+            budget = await self.repository.budget_name(user_id=user_id, category_id=category_id)
+            if budget is not None:
+                raise CategoryHierarchyError(f"Le budget « {budget} » utilise cette catégorie. Supprimez-le ou changez sa catégorie avant de continuer.")
             if await self.repository.has_live_recurrences(user_id=user_id, category_id=category_id):
                 raise CategoryHierarchyError("Une récurrence utilise cette catégorie. Supprimez-la ou changez sa catégorie avant de continuer.")
             await self.repository.purge_archived_recurrences(user_id=user_id, category_id=category_id)

@@ -23,6 +23,7 @@ class CategoryServiceTests(unittest.IsolatedAsyncioTestCase):
         self.repo = AsyncMock()
         self.repo.has_transactions.return_value = False
         self.repo.has_live_recurrences.return_value = False
+        self.repo.budget_name.return_value = None
         self.service = CategoryService(self.db, self.repo)
         self.user_id = uuid4()
         self.root = category()
