@@ -65,13 +65,76 @@ export function buildCalendarMonth(
   return weeks
 }
 
-export const filterByWallet = (
+/** Distinct mid-tone hues that read on light and dark backgrounds. */
+export const WALLET_COLORS = [
+  '#3b82f6',
+  '#f59e0b',
+  '#8b5cf6',
+  '#06b6d4',
+  '#ec4899',
+  '#84cc16',
+  '#f97316',
+  '#64748b',
+] as const
+
+export interface WalletOption {
+  id: string
+  name: string
+}
+
+export interface LegendWallet extends WalletOption {
+  color: string
+  hidden: boolean
+  /** Net of the displayed month's occurrences, in cents. */
+  net: number
+}
+
+/** Stable color per wallet, following the order the API returns them in. */
+export function walletColors(wallets: WalletOption[]): Map<string, string> {
+  return new Map(
+    wallets.map((wallet, index) => [
+      wallet.id,
+      WALLET_COLORS[index % WALLET_COLORS.length],
+    ]),
+  )
+}
+
+export const filterByWallets = (
   occurrences: CalendarOccurrence[],
-  walletId: string | undefined,
+  hidden: readonly string[],
 ) =>
-  walletId
-    ? occurrences.filter((occurrence) => occurrence.wallet_id === walletId)
-    : occurrences
+  hidden.length === 0
+    ? occurrences
+    : occurrences.filter(
+        (occurrence) => !hidden.includes(occurrence.wallet_id ?? ''),
+      )
+
+export function buildLegend(
+  wallets: WalletOption[],
+  occurrences: CalendarOccurrence[],
+  month: string,
+  hidden: readonly string[],
+): LegendWallet[] {
+  const colors = walletColors(wallets)
+  const nets = new Map<string, number>()
+  for (const occurrence of occurrences)
+    if (occurrence.wallet_id && occurrence.date.startsWith(`${month}-`))
+      nets.set(
+        occurrence.wallet_id,
+        (nets.get(occurrence.wallet_id) ?? 0) + signedCents(occurrence),
+      )
+  return wallets.map((wallet) => ({
+    ...wallet,
+    color: colors.get(wallet.id) ?? WALLET_COLORS[0],
+    hidden: hidden.includes(wallet.id),
+    net: nets.get(wallet.id) ?? 0,
+  }))
+}
+
+export const toggleWallet = (hidden: readonly string[], walletId: string) =>
+  hidden.includes(walletId)
+    ? hidden.filter((id) => id !== walletId)
+    : [...hidden, walletId]
 
 export interface DaySummary {
   incomes: CalendarOccurrence[]

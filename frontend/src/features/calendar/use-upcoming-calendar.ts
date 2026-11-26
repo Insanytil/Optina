@@ -7,9 +7,12 @@ import {
 import { loadUpcoming, upcomingKey } from './api'
 import {
   buildCalendarMonth,
-  filterByWallet,
+  buildLegend,
+  filterByWallets,
   gridRange,
   shiftMonth,
+  toggleWallet,
+  walletColors,
 } from './calendar-model'
 
 const localToday = () => {
@@ -17,12 +20,12 @@ const localToday = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-/** State and data for the home calendar: month navigation + wallet filter. */
+/** State and data for the home calendar: month navigation + hidden wallets (not persisted). */
 export function useUpcomingCalendar() {
   const today = localToday()
   const currentMonth = today.slice(0, 7)
   const [month, setMonth] = useState(currentMonth)
-  const [walletId, setWalletId] = useState<string>()
+  const [hidden, setHidden] = useState<string[]>([])
   const { from, to } = gridRange(month)
 
   const query = useQuery({
@@ -39,18 +42,26 @@ export function useUpcomingCalendar() {
   const occurrences = useMemo(() => query.data?.occurrences ?? [], [query.data])
   const weeks = useMemo(
     () =>
-      buildCalendarMonth(month, filterByWallet(occurrences, walletId), today),
-    [month, occurrences, walletId, today],
+      buildCalendarMonth(month, filterByWallets(occurrences, hidden), today),
+    [month, occurrences, hidden, today],
   )
+  const walletList = useMemo(() => wallets.data ?? [], [wallets.data])
+  const legend = useMemo(
+    () => buildLegend(walletList, occurrences, month, hidden),
+    [walletList, occurrences, month, hidden],
+  )
+  const colors = useMemo(() => walletColors(walletList), [walletList])
 
   return {
     query,
     today,
     month,
     weeks,
-    wallets: wallets.data ?? [],
-    walletId,
-    setWalletId,
+    legend,
+    colors,
+    toggle: (walletId: string) => setHidden(toggleWallet(hidden, walletId)),
+    showAll: () => setHidden([]),
+    hideAll: () => setHidden(walletList.map((wallet) => wallet.id)),
     canGoBack: month > currentMonth,
     previous: () => setMonth((value) => shiftMonth(value, -1)),
     next: () => setMonth((value) => shiftMonth(value, 1)),

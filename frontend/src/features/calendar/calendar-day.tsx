@@ -12,6 +12,7 @@ import {
   formatSignedCents,
 } from '../forecasts/format'
 import { summarizeDay } from './calendar-model'
+import { WalletSwatch } from './wallet-filter'
 import type {
   CalendarDay as Day,
   CalendarOccurrence,
@@ -27,13 +28,26 @@ const occurrenceKey = (occurrence: CalendarOccurrence) =>
 
 const plural = (count: number) => `${count} échéance${count > 1 ? 's' : ''}`
 
-function Pill({ occurrence }: { occurrence: CalendarOccurrence }) {
+type ColorOf = (occurrence: CalendarOccurrence) => string | undefined
+
+function Pill({
+  occurrence,
+  colorOf,
+}: {
+  occurrence: CalendarOccurrence
+  colorOf: ColorOf
+}) {
   const amount = signedCents(occurrence)
   return (
     <span
-      title={occurrence.label}
+      title={
+        occurrence.wallet_name
+          ? `${occurrence.label} · ${occurrence.wallet_name}`
+          : occurrence.label
+      }
+      style={{ borderLeftColor: colorOf(occurrence) }}
       className={cn(
-        'block truncate rounded px-1 text-[11px] leading-4 tabular-nums',
+        'block truncate rounded border-l-[3px] border-transparent px-1 text-[11px] leading-4 tabular-nums',
         amount < 0 ? 'bg-rose-500/10' : 'bg-emerald-500/10',
         amountTone(amount),
       )}
@@ -70,9 +84,11 @@ function Dots({ occurrences }: { occurrences: CalendarOccurrence[] }) {
 function Amounts({
   occurrences,
   net,
+  colorOf,
 }: {
   occurrences: CalendarOccurrence[]
   net: number
+  colorOf: ColorOf
 }) {
   if (occurrences.length > MAX_PILLS)
     return (
@@ -88,7 +104,11 @@ function Amounts({
   return (
     <span className="mt-1 hidden space-y-0.5 sm:block">
       {occurrences.map((occurrence) => (
-        <Pill key={occurrenceKey(occurrence)} occurrence={occurrence} />
+        <Pill
+          key={occurrenceKey(occurrence)}
+          occurrence={occurrence}
+          colorOf={colorOf}
+        />
       ))}
     </span>
   )
@@ -100,12 +120,14 @@ function Group({
   total,
   sign,
   showHeader,
+  colorOf,
 }: {
   title: string
   items: CalendarOccurrence[]
   total: number
   sign: 1 | -1
   showHeader: boolean
+  colorOf: ColorOf
 }) {
   if (items.length === 0) return null
   return (
@@ -132,8 +154,11 @@ function Group({
               <span className="min-w-0">
                 <span className="block truncate">{occurrence.label}</span>
                 {occurrence.wallet_name && (
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {occurrence.wallet_name}
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <WalletSwatch
+                      color={colorOf(occurrence) ?? 'currentColor'}
+                    />
+                    <span className="truncate">{occurrence.wallet_name}</span>
                   </span>
                 )}
               </span>
@@ -148,7 +173,15 @@ function Group({
   )
 }
 
-function DayDetails({ date, summary }: { date: string; summary: DaySummary }) {
+function DayDetails({
+  date,
+  summary,
+  colorOf,
+}: {
+  date: string
+  summary: DaySummary
+  colorOf: ColorOf
+}) {
   const count = summary.incomes.length + summary.expenses.length
   // Group titles only help when a group holds several items; otherwise the
   // amounts speak for themselves.
@@ -166,6 +199,7 @@ function DayDetails({ date, summary }: { date: string; summary: DaySummary }) {
           total={summary.income}
           sign={1}
           showHeader={grouped}
+          colorOf={colorOf}
         />
         <Group
           title="Dépenses"
@@ -173,6 +207,7 @@ function DayDetails({ date, summary }: { date: string; summary: DaySummary }) {
           total={summary.expense}
           sign={-1}
           showHeader={grouped}
+          colorOf={colorOf}
         />
       </div>
       {/* Net only adds information when both groups are present. */}
@@ -208,7 +243,17 @@ function DayNumber({ day, isToday }: { day: Day; isToday: boolean }) {
   )
 }
 
-export function CalendarDay({ day, today }: { day: Day; today: string }) {
+export function CalendarDay({
+  day,
+  today,
+  colors,
+}: {
+  day: Day
+  today: string
+  colors: Map<string, string>
+}) {
+  const colorOf: ColorOf = (occurrence) =>
+    occurrence.wallet_id ? colors.get(occurrence.wallet_id) : undefined
   const number = <DayNumber day={day} isToday={day.date === today} />
   if (day.occurrences.length === 0)
     return <div className={cellClass(day)}>{number}</div>
@@ -223,10 +268,10 @@ export function CalendarDay({ day, today }: { day: Day; today: string }) {
       >
         {number}
         <Dots occurrences={ordered} />
-        <Amounts occurrences={ordered} net={summary.net} />
+        <Amounts occurrences={ordered} net={summary.net} colorOf={colorOf} />
       </PopoverTrigger>
       <PopoverContent className="w-72">
-        <DayDetails date={day.date} summary={summary} />
+        <DayDetails date={day.date} summary={summary} colorOf={colorOf} />
       </PopoverContent>
     </Popover>
   )

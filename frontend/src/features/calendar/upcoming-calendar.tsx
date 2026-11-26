@@ -10,45 +10,11 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { formatMonth } from '../forecasts/format'
 import { CalendarDay } from './calendar-day'
 import { WEEKDAYS } from './calendar-model'
 import { useUpcomingCalendar } from './use-upcoming-calendar'
-
-const ALL = 'all'
-
-function WalletFilter({
-  wallets,
-  walletId,
-  onChange,
-}: {
-  wallets: { id: string; name: string }[]
-  walletId?: string
-  onChange: (walletId?: string) => void
-}) {
-  if (wallets.length < 2) return null
-  return (
-    <ToggleGroup
-      aria-label="Portefeuille"
-      variant="outline"
-      size="sm"
-      className="flex-wrap"
-      value={[walletId ?? ALL]}
-      onValueChange={(values) => {
-        const value = values[0]
-        if (value) onChange(value === ALL ? undefined : value)
-      }}
-    >
-      <ToggleGroupItem value={ALL}>Tous</ToggleGroupItem>
-      {wallets.map((wallet) => (
-        <ToggleGroupItem key={wallet.id} value={wallet.id}>
-          {wallet.name}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  )
-}
+import { WalletFilter } from './wallet-filter'
 
 /** Home calendar: what goes out and comes in, across every wallet. */
 export function UpcomingCalendar() {
@@ -90,9 +56,10 @@ export function UpcomingCalendar() {
       </CardHeader>
       <CardContent className="space-y-2">
         <WalletFilter
-          wallets={calendar.wallets}
-          walletId={calendar.walletId}
-          onChange={calendar.setWalletId}
+          legend={calendar.legend}
+          onToggle={calendar.toggle}
+          onShowAll={calendar.showAll}
+          onHideAll={calendar.hideAll}
         />
         {query.isError ? (
           <Alert variant="destructive">
@@ -121,7 +88,12 @@ export function UpcomingCalendar() {
                   query.isPending ? (
                     <Skeleton key={day.date} className="min-h-16" />
                   ) : (
-                    <CalendarDay key={day.date} day={day} today={today} />
+                    <CalendarDay
+                      key={day.date}
+                      day={day}
+                      today={today}
+                      colors={calendar.colors}
+                    />
                   ),
                 )}
             </div>

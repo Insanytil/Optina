@@ -72,15 +72,47 @@ test('month grid places occurrences and flags past and spill-over days', () => {
   )
 })
 
-test('filterByWallet keeps everything without a selection', () => {
+const wallets = [
+  { id: 'w1', name: 'Courant' },
+  { id: 'w2', name: 'Épargne' },
+  { id: 'w3', name: 'Joint' },
+]
+
+test('filterByWallets hides only the listed wallets', () => {
   const items = [
     occurrence('2026-12-05', 'A', 'w1'),
     occurrence('2026-12-06', 'B', 'w2'),
   ]
-  assert.equal(calendar.filterByWallet(items, undefined).length, 2)
+  assert.equal(calendar.filterByWallets(items, []).length, 2)
   assert.deepEqual(
-    calendar.filterByWallet(items, 'w2').map((o) => o.label),
+    calendar.filterByWallets(items, ['w1']).map((o) => o.label),
     ['B'],
+  )
+})
+
+test('toggleWallet adds or removes a wallet from the hidden list', () => {
+  assert.deepEqual(calendar.toggleWallet([], 'w2'), ['w2'])
+  assert.deepEqual(calendar.toggleWallet(['w1', 'w2'], 'w1'), ['w2'])
+})
+
+test('legend gives stable colors and the displayed month net per wallet', () => {
+  const legend = calendar.buildLegend(
+    wallets,
+    [
+      occurrence('2026-12-05', 'Loyer', 'w1'),
+      occurrence('2026-12-20', 'Eau', 'w1'),
+      occurrence('2027-01-02', 'Hors mois', 'w2'),
+    ],
+    '2026-12',
+    ['w3'],
+  )
+  assert.deepEqual(
+    legend.map((w) => [w.id, w.color, w.net, w.hidden]),
+    [
+      ['w1', calendar.WALLET_COLORS[0], -2000, false],
+      ['w2', calendar.WALLET_COLORS[1], 0, false],
+      ['w3', calendar.WALLET_COLORS[2], 0, true],
+    ],
   )
 })
 
