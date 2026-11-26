@@ -75,6 +75,9 @@ class WalletService:
                 raise WalletNotFoundError()
             if await self.repository.has_transactions(user_id=user_id, wallet_id=wallet_id):
                 raise WalletInUseError("Ce portefeuille contient des transactions et ne peut pas être supprimé.")
+            if await self.repository.has_live_recurrences(user_id=user_id, wallet_id=wallet_id):
+                raise WalletInUseError("Une récurrence utilise ce portefeuille. Supprimez-la avant de continuer.")
+            await self.repository.purge_archived_recurrences(user_id=user_id, wallet_id=wallet_id)
             if not await self.repository.delete(wallet_id=wallet_id, user_id=user_id):
                 raise WalletNotFoundError()
             await self.db.commit()

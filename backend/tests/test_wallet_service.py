@@ -21,6 +21,7 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
         self.service = WalletService(self.db, self.repo, self.transactions)
         self.user_id = uuid4()
         self.repo.has_transactions.return_value = False
+        self.repo.has_live_recurrences.return_value = False
         self.wallet = SimpleNamespace(id=uuid4(), name="Courant", balance=Decimal("12.34"), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         self.repo.lock_many.return_value = [self.wallet]
 
@@ -109,6 +110,21 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(WalletInUseError):
             await self.service.delete(user_id=self.user_id, wallet_id=self.wallet.id)
         self.repo.delete.assert_not_awaited()
+
+    async def test_delete_purges_archived_recurrences_first(self):
+        self.repo.delete.return_value = True
+        await self.service.delete(user_id=self.user_id, wallet_id=self.wallet.id)
+        self.repo.purge_archived_recurrences.assert_awaited_once_with(user_id=self.user_id, wallet_id=self.wallet.id)
+        self.db.commit.assert_awaited_once()
+
+    async def test_wallet_with_live_recurrence_cannot_be_deleted(self):
+        from app.modules.wallet.exceptions import WalletInUseError
+        self.repo.has_live_recurrences.return_value = True
+        with self.assertRaises(WalletInUseError):
+            await self.service.delete(user_id=self.user_id, wallet_id=self.wallet.id)
+        self.repo.purge_archived_recurrences.assert_not_awaited()
+        self.repo.delete.assert_not_awaited()
+        self.db.rollback.assert_awaited_once()
 
     async def test_summary_uses_database_aggregate_and_keeps_current_balance(self):
         from datetime import date

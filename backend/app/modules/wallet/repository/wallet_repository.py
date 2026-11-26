@@ -92,6 +92,20 @@ class WalletRepository:
         return bool(await self.db.scalar(select(exists().where(
             WalletTransaction.user_id == user_id, WalletTransaction.wallet_id == wallet_id))))
 
+    async def has_live_recurrences(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID) -> bool:
+        from app.models.recurrence import Recurrence
+        return bool(await self.db.scalar(select(exists().where(
+            Recurrence.user_id == user_id, Recurrence.wallet_id == wallet_id, Recurrence.archived.is_(False)))))
+
+    async def purge_archived_recurrences(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID) -> None:
+        """Archived rules are hidden history; drop them (and their receipts) so the wallet can go."""
+        from app.models.recurrence import Recurrence, RecurrenceOccurrence
+        from app.models.wallet_transaction import WalletTransaction
+        ids = select(Recurrence.id).where(Recurrence.user_id == user_id, Recurrence.wallet_id == wallet_id,
+            Recurrence.archived.is_(True), ~exists().where(WalletTransaction.recurrence_id == Recurrence.id))
+        await self.db.execute(delete(RecurrenceOccurrence).where(RecurrenceOccurrence.recurrence_id.in_(ids)))
+        await self.db.execute(delete(Recurrence).where(Recurrence.id.in_(ids)))
+
     async def get_summary(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID,
                           date_from: DateValue, date_to: DateValue) -> tuple[Wallet, Decimal, Decimal] | None:
         from app.models.wallet_transaction import WalletTransaction
