@@ -31,6 +31,7 @@ export const navigationGroups: readonly NavigationGroup[] = [
     label: 'Visualisation',
     items: [
       { label: 'Accueil', to: '/', icon: Home, exact: true },
+      { label: 'Mes portefeuilles', to: '/my-wallets', icon: Wallet },
       { label: 'Vue globale', to: '/overview', icon: ChartNoAxesCombined },
       { label: 'Transactions', to: '/transactions', icon: ArrowLeftRight },
       { label: 'Suivi des budgets', to: '/budgets', icon: Target },

@@ -16,6 +16,7 @@ import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
 import { Route as ProtectedBudgetsRouteImport } from './routes/_protected/budgets'
 import { Route as ProtectedCategoriesRouteImport } from './routes/_protected/categories'
 import { Route as ProtectedForecastsRouteImport } from './routes/_protected/forecasts'
+import { Route as ProtectedMyWalletsRouteImport } from './routes/_protected/my-wallets'
 import { Route as ProtectedOverviewRouteImport } from './routes/_protected/overview'
 import { Route as ProtectedRecurrencesRouteImport } from './routes/_protected/recurrences'
 import { Route as ProtectedTransactionsRouteImport } from './routes/_protected/transactions'
@@ -55,6 +56,11 @@ const ProtectedCategoriesRoute = ProtectedCategoriesRouteImport.update({
 const ProtectedForecastsRoute = ProtectedForecastsRouteImport.update({
   id: '/forecasts',
   path: '/forecasts',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedMyWalletsRoute = ProtectedMyWalletsRouteImport.update({
+  id: '/my-wallets',
+  path: '/my-wallets',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedOverviewRoute = ProtectedOverviewRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/budgets': typeof ProtectedBudgetsRoute
   '/categories': typeof ProtectedCategoriesRoute
   '/forecasts': typeof ProtectedForecastsRoute
+  '/my-wallets': typeof ProtectedMyWalletsRoute
   '/overview': typeof ProtectedOverviewRoute
   '/recurrences': typeof ProtectedRecurrencesRoute
   '/transactions': typeof ProtectedTransactionsRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/budgets': typeof ProtectedBudgetsRoute
   '/categories': typeof ProtectedCategoriesRoute
   '/forecasts': typeof ProtectedForecastsRoute
+  '/my-wallets': typeof ProtectedMyWalletsRoute
   '/overview': typeof ProtectedOverviewRoute
   '/recurrences': typeof ProtectedRecurrencesRoute
   '/transactions': typeof ProtectedTransactionsRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/_protected/budgets': typeof ProtectedBudgetsRoute
   '/_protected/categories': typeof ProtectedCategoriesRoute
   '/_protected/forecasts': typeof ProtectedForecastsRoute
+  '/_protected/my-wallets': typeof ProtectedMyWalletsRoute
   '/_protected/overview': typeof ProtectedOverviewRoute
   '/_protected/recurrences': typeof ProtectedRecurrencesRoute
   '/_protected/transactions': typeof ProtectedTransactionsRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/budgets'
     | '/categories'
     | '/forecasts'
+    | '/my-wallets'
     | '/overview'
     | '/recurrences'
     | '/transactions'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/budgets'
     | '/categories'
     | '/forecasts'
+    | '/my-wallets'
     | '/overview'
     | '/recurrences'
     | '/transactions'
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/_protected/budgets'
     | '/_protected/categories'
     | '/_protected/forecasts'
+    | '/_protected/my-wallets'
     | '/_protected/overview'
     | '/_protected/recurrences'
     | '/_protected/transactions'
@@ -239,6 +251,13 @@ declare module '@tanstack/react-router' {
       path: '/forecasts'
       fullPath: '/forecasts'
       preLoaderRoute: typeof ProtectedForecastsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/my-wallets': {
+      id: '/_protected/my-wallets'
+      path: '/my-wallets'
+      fullPath: '/my-wallets'
+      preLoaderRoute: typeof ProtectedMyWalletsRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/overview': {
@@ -320,6 +339,7 @@ interface ProtectedRouteChildren {
   ProtectedBudgetsRoute: typeof ProtectedBudgetsRoute
   ProtectedCategoriesRoute: typeof ProtectedCategoriesRoute
   ProtectedForecastsRoute: typeof ProtectedForecastsRoute
+  ProtectedMyWalletsRoute: typeof ProtectedMyWalletsRoute
   ProtectedOverviewRoute: typeof ProtectedOverviewRoute
   ProtectedRecurrencesRoute: typeof ProtectedRecurrencesRoute
   ProtectedTransactionsRoute: typeof ProtectedTransactionsRoute
@@ -332,6 +352,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedBudgetsRoute: ProtectedBudgetsRoute,
   ProtectedCategoriesRoute: ProtectedCategoriesRoute,
   ProtectedForecastsRoute: ProtectedForecastsRoute,
+  ProtectedMyWalletsRoute: ProtectedMyWalletsRoute,
   ProtectedOverviewRoute: ProtectedOverviewRoute,
   ProtectedRecurrencesRoute: ProtectedRecurrencesRoute,
   ProtectedTransactionsRoute: ProtectedTransactionsRoute,
