@@ -23,6 +23,7 @@ export interface CategoryPage {
 export const categoryKeys = {
   all: ['categories'] as const,
   tree: ['categories', 'tree'] as const,
+  usage: ['categories', 'usage'] as const,
   list: (parentId: string | null, page: number) =>
     ['categories', 'list', parentId, page] as const,
   path: (id: string | null) => ['categories', 'path', id] as const,
@@ -94,4 +95,16 @@ export function searchCategories(
   if (scope.parentId) params.set('parent_id', scope.parentId)
   if (scope.rootOnly) params.set('root_only', 'true')
   return api<Category[]>(`/categories/search?${params}`, { signal })
+}
+
+/** What still references a category; anything non-zero blocks deletion. */
+export interface CategoryUsage {
+  category_id: string
+  transactions: number
+  recurrences: number
+  budgets: number
+}
+
+export function loadCategoryUsage(signal?: AbortSignal) {
+  return api<CategoryUsage[]>('/categories/usage', { signal })
 }

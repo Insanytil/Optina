@@ -14,10 +14,13 @@ import type { Category } from './api'
 
 export function DeleteCategoryDialog({
   category,
+  blocker,
   onClose,
   onDeleted,
 }: {
   category: Category
+  /** Why it cannot be deleted; the dialog then only explains. */
+  blocker: string | null
   onClose: () => void
   onDeleted: () => void
 }) {
@@ -41,10 +44,13 @@ export function DeleteCategoryDialog({
     >
       <DialogContent showCloseButton={!mutation.isPending}>
         <DialogHeader>
-          <DialogTitle>Supprimer la catégorie ?</DialogTitle>
+          <DialogTitle>
+            {blocker ? 'Suppression impossible' : 'Supprimer la catégorie ?'}
+          </DialogTitle>
           <DialogDescription>
-            La catégorie « {category.name} » sera définitivement supprimée. Elle
-            doit être vide de sous-catégories pour pouvoir être supprimée.
+            {blocker
+              ? `« ${category.name} » ne peut pas être supprimée. ${blocker}`
+              : `La catégorie « ${category.name} » sera définitivement supprimée.`}
           </DialogDescription>
         </DialogHeader>
         {mutation.error && (
@@ -58,18 +64,20 @@ export function DeleteCategoryDialog({
             disabled={mutation.isPending}
             onClick={onClose}
           >
-            Annuler
+            {blocker ? 'Fermer' : 'Annuler'}
           </Button>
-          <Button
-            variant="destructive"
-            disabled={mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            {mutation.isPending && (
-              <LoaderCircle className="animate-spin" aria-hidden="true" />
-            )}
-            {mutation.isPending ? 'Suppression…' : 'Supprimer'}
-          </Button>
+          {!blocker && (
+            <Button
+              variant="destructive"
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate()}
+            >
+              {mutation.isPending && (
+                <LoaderCircle className="animate-spin" aria-hidden="true" />
+              )}
+              {mutation.isPending ? 'Suppression…' : 'Supprimer'}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

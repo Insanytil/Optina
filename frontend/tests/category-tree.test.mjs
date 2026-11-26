@@ -19,6 +19,9 @@ const {
   dropPlacement,
   canMoveCategory,
   applyCategoryMove,
+  searchTree,
+  ancestorNames,
+  ancestorIds,
 } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`
 )
@@ -153,4 +156,52 @@ test('invalid placements leave the original cache intact', () => {
     applyCategoryMove(categories, 'c', { parent_id: null, before_id: 'a1' }),
     categories,
   )
+})
+
+const usageSource = await readFile(
+  new URL('../src/features/categories/category-usage.ts', import.meta.url),
+  'utf8',
+)
+const { deletionBlocker } = await import(
+  `data:text/javascript;base64,${Buffer.from(
+    ts.transpileModule(usageSource, {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  ).toString('base64')}`
+)
+
+test('search keeps matches with their ancestors, ignoring case and accents', () => {
+  const index = indexCategories([
+    { ...item('food'), name: 'Alimentation' },
+    { ...item('groceries', 'food'), name: 'Courses' },
+    { ...item('home'), name: 'Logement' },
+    { ...item('power', 'home'), name: 'Électricité' },
+  ])
+  assert.equal(searchTree(index, '  '), null)
+  const result = searchTree(index, 'electri')
+  assert.deepEqual([...result.shown].sort(), ['home', 'power'])
+  assert.deepEqual([...result.open], ['home'])
+})
+
+test('ancestor helpers walk from the root and survive cycles', () => {
+  const index = indexCategories([item('a'), item('b', 'a'), item('c', 'b')])
+  assert.deepEqual(ancestorNames(index, 'c'), ['a', 'b'])
+  assert.deepEqual(ancestorIds(index, 'c'), ['b', 'a'])
+  const cyclic = indexCategories([item('x', 'y'), item('y', 'x')])
+  assert.deepEqual(ancestorIds(cyclic, 'x'), ['y', 'x'])
+})
+
+test('deletion is blocked by children first, then by any usage', () => {
+  const none = { transactions: 0, recurrences: 0, budgets: 0 }
+  assert.equal(deletionBlocker(none, 0), null)
+  assert.match(deletionBlocker(none, 2), /2 sous-catégories/)
+  assert.match(
+    deletionBlocker({ ...none, transactions: 1 }, 0),
+    /1 transaction l’utilise/,
+  )
+  assert.match(deletionBlocker({ ...none, recurrences: 3 }, 0), /3 récurrences/)
+  assert.match(deletionBlocker({ ...none, budgets: 1 }, 0), /1 budget/)
 })

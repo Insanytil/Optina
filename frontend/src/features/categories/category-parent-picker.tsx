@@ -35,10 +35,6 @@ export function CategoryParentPicker({
         placeholder="Aucune — catégorie principale"
         clearLabel="Aucune — catégorie principale"
       />
-      <p className="text-xs text-muted-foreground">
-        Recherchez un parent ou laissez le champ vide pour une catégorie
-        principale.
-      </p>
       {tree.isError && (
         <p role="alert" className="text-sm text-destructive">
           {tree.error.message}

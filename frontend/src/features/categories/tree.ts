@@ -117,3 +117,57 @@ export function applyCategoryMove(
     return order === undefined ? item : { ...item, position: order }
   })
 }
+
+const normalize = (text: string) =>
+  text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+
+/**
+ * Categories whose name matches `query`, plus their ancestors so matches stay
+ * in context. `open` lists the ancestors to expand. Null when query is blank.
+ */
+export function searchTree(
+  index: CategoryIndex,
+  query: string,
+): { shown: Set<string>; open: Set<string> } | null {
+  const needle = normalize(query)
+  if (!needle) return null
+  const shown = new Set<string>()
+  const open = new Set<string>()
+  for (const category of index.byId.values()) {
+    if (!normalize(category.name).includes(needle)) continue
+    shown.add(category.id)
+    let parentId = category.parent_id
+    while (parentId !== null && !open.has(parentId)) {
+      open.add(parentId)
+      shown.add(parentId)
+      parentId = index.byId.get(parentId)?.parent_id ?? null
+    }
+  }
+  return { shown, open }
+}
+
+/** Names from the root down to (excluding) the category itself. */
+export function ancestorNames(index: CategoryIndex, id: string): string[] {
+  const names: string[] = []
+  const seen = new Set<string>()
+  let parentId = index.byId.get(id)?.parent_id ?? null
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId)
+    const parent = index.byId.get(parentId)
+    if (!parent) break
+    names.unshift(parent.name)
+    parentId = parent.parent_id
+  }
+  return names
+}
+
+/** Ids of every ancestor, so a selected category can be revealed. */
+export function ancestorIds(index: CategoryIndex, id: string): string[] {
+  const ids: string[] = []
+  let parentId = index.byId.get(id)?.parent_id ?? null
+  while (parentId !== null && !ids.includes(parentId)) {
+    ids.push(parentId)
+    parentId = index.byId.get(parentId)?.parent_id ?? null
+  }
+  return ids
+}
