@@ -38,6 +38,8 @@ export interface ForecastMonth {
 export interface ForecastView {
   summary: ForecastSummary
   balance: BalancePoint[]
+  /** Occurrences per date, for the chart's movement dots and tooltip. */
+  movements: Map<string, ForecastOccurrence[]>
   months: ForecastMonth[]
 }
 
@@ -94,6 +96,21 @@ export function buildDailyBalance(
   return points
 }
 
+/** Occurrences grouped by date, incomes first. */
+export function movementsByDate(
+  occurrences: ForecastOccurrence[],
+): Map<string, ForecastOccurrence[]> {
+  const byDate = new Map<string, ForecastOccurrence[]>()
+  for (const occurrence of occurrences)
+    byDate.set(occurrence.date, [
+      ...(byDate.get(occurrence.date) ?? []),
+      occurrence,
+    ])
+  for (const items of byDate.values())
+    items.sort((a, b) => signedCents(b) - signedCents(a))
+  return byDate
+}
+
 /** Earliest lowest point; the first point when the series is empty-safe. */
 export function lowestPoint(points: BalancePoint[]): DatedAmount {
   let lowest = points[0]
@@ -126,6 +143,7 @@ export function buildForecastView(forecast: Forecast): ForecastView {
   const final = months.at(-1)?.closing ?? current
   return {
     balance,
+    movements: movementsByDate(forecast.occurrences),
     months,
     summary: {
       current,

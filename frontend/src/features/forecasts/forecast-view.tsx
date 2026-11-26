@@ -88,7 +88,7 @@ export function ForecastView({
       </Alert>
     )
 
-  const { summary, balance, months: monthViews } = view
+  const { summary, balance, movements, months: monthViews } = view
   return (
     <div className="space-y-2.5">
       <ForecastSummary summary={summary} />
@@ -103,7 +103,11 @@ export function ForecastView({
                 <CardTitle>Solde projeté</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <BalanceChart points={balance} minimum={summary.minimum} />
+                <BalanceChart
+                  points={balance}
+                  movements={movements}
+                  minimum={summary.minimum}
+                />
                 <CardTitle>Rentrées et dépenses par mois</CardTitle>
                 <MonthlyChart months={monthViews} />
               </CardContent>
