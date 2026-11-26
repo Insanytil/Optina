@@ -125,7 +125,7 @@ class CategoryRepository:
                 .where(Recurrence.user_id == user_id, Recurrence.archived.is_(False))
                 .group_by(Recurrence.category_id),
             # A budget series spans many periods; count it once.
-            "budgets": select(Budget.category_id, func.count(func.distinct(func.coalesce(Budget.series_id, Budget.id))))
+            "budgets": select(Budget.category_id, func.count(func.coalesce(Budget.series_id, Budget.id).distinct()))
                 .where(Budget.user_id == user_id).group_by(Budget.category_id),
         }
         usage: dict[uuid.UUID, dict[str, int]] = {}

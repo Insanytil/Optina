@@ -78,6 +78,29 @@ class CategoryRepositoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(self.user_id, compiled.params.values())
         self.assertIn("ORDER BY categories.position, categories.id", str(compiled))
 
+    async def test_usage_counts_are_owner_scoped_and_merged_per_category(self):
+        other = uuid4()
+        results = [
+            [(self.category_id, 4)],
+            [(self.category_id, 1), (other, 2)],
+            [(other, 1)],
+        ]
+        self.db.execute = AsyncMock(side_effect=[MagicMock(all=MagicMock(return_value=rows)) for rows in results])
+        usage = await self.repo.usage(user_id=self.user_id)
+        self.assertEqual(usage, {
+            self.category_id: {"transactions": 4, "recurrences": 1},
+            other: {"recurrences": 2, "budgets": 1},
+        })
+        sql = [call.args[0].compile(dialect=postgresql.dialect()) for call in self.db.execute.call_args_list]
+        self.assertEqual(len(sql), 3)
+        for compiled in sql:
+            self.assertIn(self.user_id, compiled.params.values())
+            self.assertIn("GROUP BY", str(compiled))
+        self.assertIn("wallet_transactions.category_id IS NOT NULL", str(sql[0]))
+        self.assertIn("recurrences.archived IS false", str(sql[1]))
+        # Budget series are counted once, however many periods they span.
+        self.assertIn("count(DISTINCT coalesce(budgets.series_id, budgets.id))", str(sql[2]))
+
     async def test_search_is_owner_scoped_accent_insensitive_and_escapes_wildcards(self):
         self.db.scalars.return_value.all.return_value=[]
         await self.repo.search(user_id=self.user_id,query='Énergie 10%_',limit=25)
