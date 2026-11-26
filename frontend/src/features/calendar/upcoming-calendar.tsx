@@ -16,13 +16,19 @@ import { WEEKDAYS } from './calendar-model'
 import { useUpcomingCalendar } from './use-upcoming-calendar'
 import { WalletFilter } from './wallet-filter'
 
-/** Home calendar: what goes out and comes in, across every wallet. */
-export function UpcomingCalendar() {
-  const calendar = useUpcomingCalendar()
+/** Home calendar: what goes out and comes in, across every wallet.
+ * Pass `calendar` to share its month with other blocks on the page. */
+export function UpcomingCalendar({
+  calendar: shared,
+}: {
+  calendar?: ReturnType<typeof useUpcomingCalendar>
+}) {
+  const own = useUpcomingCalendar()
+  const calendar = shared ?? own
   const { query, month, weeks, today } = calendar
 
   return (
-    <Card size="sm" className="lg:min-h-0 lg:flex-1">
+    <Card size="sm" className="min-w-0 lg:min-h-[30rem] lg:flex-1">
       <CardHeader>
         <CardTitle>Échéances à venir</CardTitle>
         <CardDescription>

@@ -62,6 +62,7 @@ export function useUpcomingCalendar() {
     toggle: (walletId: string) => setHidden(toggleWallet(hidden, walletId)),
     showAll: () => setHidden([]),
     hideAll: () => setHidden(walletList.map((wallet) => wallet.id)),
+    hidden,
     canGoBack: month > currentMonth,
     previous: () => setMonth((value) => shiftMonth(value, -1)),
     next: () => setMonth((value) => shiftMonth(value, 1)),
