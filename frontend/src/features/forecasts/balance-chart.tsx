@@ -109,11 +109,15 @@ export function BalanceChart({
   points,
   movements,
   minimum,
+  selected,
 }: {
   points: BalancePoint[]
   movements: Movements
   minimum: DatedAmount
+  selected: ForecastOccurrence | null
 }) {
+  const highlight =
+    selected && points.find((point) => point.date === selected.date)
   return (
     <ChartContainer
       config={forecastChartConfig}
@@ -163,6 +167,27 @@ export function BalanceChart({
           stroke="var(--color-expenses)"
           strokeWidth={2}
         />
+        {highlight && (
+          <ReferenceLine
+            x={highlight.date}
+            stroke="var(--color-balance)"
+            strokeDasharray="3 3"
+          />
+        )}
+        {highlight && (
+          <ReferenceDot
+            x={highlight.date}
+            y={highlight.balance}
+            r={6}
+            fill={
+              signedCents(selected) < 0
+                ? 'var(--color-expenses)'
+                : 'var(--color-income)'
+            }
+            stroke="var(--background)"
+            strokeWidth={2}
+          />
+        )}
       </AreaChart>
     </ChartContainer>
   )

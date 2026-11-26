@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CalendarClock } from 'lucide-react'
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
@@ -14,7 +15,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { BalanceChart } from './balance-chart'
 import { ForecastSummary, ShortfallAlert } from './forecast-summary'
-import type { ForecastHorizon } from './forecast-model'
+import type { ForecastHorizon, ForecastOccurrence } from './forecast-model'
 import { MonthlyChart } from './monthly-chart'
 import { MonthlyTable } from './monthly-table'
 import { UpcomingByMonth } from './upcoming-by-month'
@@ -72,6 +73,8 @@ export function ForecastView({
     walletId,
     months,
   )
+  // Occurrence picked in the list, highlighted on the balance chart.
+  const [selected, setSelected] = useState<ForecastOccurrence | null>(null)
 
   if (isPending) return <ForecastSkeleton />
   if (isError || !view)
@@ -107,6 +110,7 @@ export function ForecastView({
                   points={balance}
                   movements={movements}
                   minimum={summary.minimum}
+                  selected={selected}
                 />
                 <CardTitle>Rentrées et dépenses par mois</CardTitle>
                 <MonthlyChart months={monthViews} />
@@ -117,7 +121,11 @@ export function ForecastView({
                 <CardTitle>Prochaines échéances</CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto">
-                <UpcomingByMonth months={monthViews} />
+                <UpcomingByMonth
+                  months={monthViews}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
               </CardContent>
             </Card>
           </div>
