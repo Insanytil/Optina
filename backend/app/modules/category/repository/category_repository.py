@@ -112,6 +112,28 @@ class CategoryRepository:
         return bool(await self.db.scalar(select(exists().where(
             WalletTransaction.user_id == user_id, WalletTransaction.category_id == category_id))))
 
+    async def usage(self, *, user_id: uuid.UUID) -> dict[uuid.UUID, dict[str, int]]:
+        """Per category: transactions, live recurrences and budgets referencing it directly."""
+        from app.models.budget import Budget
+        from app.models.recurrence import Recurrence
+        from app.models.wallet_transaction import WalletTransaction
+        queries = {
+            "transactions": select(WalletTransaction.category_id, func.count())
+                .where(WalletTransaction.user_id == user_id, WalletTransaction.category_id.is_not(None))
+                .group_by(WalletTransaction.category_id),
+            "recurrences": select(Recurrence.category_id, func.count())
+                .where(Recurrence.user_id == user_id, Recurrence.archived.is_(False))
+                .group_by(Recurrence.category_id),
+            # A budget series spans many periods; count it once.
+            "budgets": select(Budget.category_id, func.count(func.distinct(func.coalesce(Budget.series_id, Budget.id))))
+                .where(Budget.user_id == user_id).group_by(Budget.category_id),
+        }
+        usage: dict[uuid.UUID, dict[str, int]] = {}
+        for key, query in queries.items():
+            for category_id, count in (await self.db.execute(query)).all():
+                usage.setdefault(category_id, {})[key] = count
+        return usage
+
     async def has_live_recurrences(self, *, user_id: uuid.UUID, category_id: uuid.UUID) -> bool:
         from app.models.recurrence import Recurrence
         return bool(await self.db.scalar(select(exists().where(

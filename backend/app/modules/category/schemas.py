@@ -40,5 +40,13 @@ class CategoryResponse(BaseModel):
     updated_at: datetime
 
 
+class CategoryUsage(BaseModel):
+    """What still references a category; anything non-zero blocks deletion."""
+    category_id: uuid.UUID
+    transactions: int = 0
+    recurrences: int = 0
+    budgets: int = 0
+
+
 class CategoryListParams(PagePaginationParams):
     parent_id: uuid.UUID | None = None

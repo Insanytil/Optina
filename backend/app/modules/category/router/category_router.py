@@ -7,7 +7,7 @@ from app.core.pagination import PagePaginatedResponse
 from app.modules.auth.dependencies import CsrfProtectedSession, CurrentUser
 from app.modules.category.dependencies import CategoryServiceDep
 from app.modules.category.exceptions import CategoryHierarchyError, CategoryNotFoundError
-from app.modules.category.schemas import CategoryCreate, CategoryListParams, CategoryMove, CategoryResponse, CategoryUpdate
+from app.modules.category.schemas import CategoryCreate, CategoryListParams, CategoryMove, CategoryResponse, CategoryUpdate, CategoryUsage
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -29,6 +29,11 @@ async def list_categories(user: CurrentUser, service: CategoryServiceDep, pagina
 @router.get("/tree", response_model=list[CategoryResponse])
 async def category_tree(user: CurrentUser, service: CategoryServiceDep):
     return await service.tree(user_id=user.id)
+
+
+@router.get("/usage", response_model=list[CategoryUsage])
+async def category_usage(user: CurrentUser, service: CategoryServiceDep):
+    return await service.usage(user_id=user.id)
 
 
 @router.get("/search", response_model=list[CategoryResponse])

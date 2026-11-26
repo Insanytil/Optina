@@ -118,6 +118,14 @@ class CategoryRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data[0]["id"], str(self.category.id))
         self.service.tree.assert_awaited_once_with(user_id=self.user_id)
 
+    async def test_usage_is_owner_scoped(self):
+        self.authenticate()
+        self.service.usage.return_value = [{"category_id": self.category.id, "transactions": 3, "recurrences": 1, "budgets": 0}]
+        status, data = await self.request("GET", "/categories/usage")
+        self.assertEqual(status, 200)
+        self.assertEqual(data[0]["transactions"], 3)
+        self.service.usage.assert_awaited_once_with(user_id=self.user_id)
+
     async def test_move_uses_session_owner_and_reports_conflicts(self):
         self.authenticate()
         self.service.move.return_value = self.category

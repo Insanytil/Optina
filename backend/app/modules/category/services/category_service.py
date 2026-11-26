@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.pagination import PagePaginatedResponse, PagePaginationMeta, PagePaginationParams
 from app.modules.category.exceptions import CategoryHierarchyError, CategoryNotFoundError
 from app.modules.category.repository.category_repository import CategoryRepository
-from app.modules.category.schemas import CategoryCreate, CategoryMove, CategoryResponse, CategoryUpdate
+from app.modules.category.schemas import CategoryCreate, CategoryMove, CategoryResponse, CategoryUpdate, CategoryUsage
 
 
 class CategoryService:
@@ -116,6 +116,10 @@ class CategoryService:
     async def tree(self, *, user_id: uuid.UUID) -> list[CategoryResponse]:
         categories = await self.repository.list_tree(user_id=user_id)
         return [CategoryResponse.model_validate(item) for item in categories]
+
+    async def usage(self, *, user_id: uuid.UUID) -> list[CategoryUsage]:
+        counts = await self.repository.usage(user_id=user_id)
+        return [CategoryUsage(category_id=category_id, **values) for category_id, values in counts.items()]
 
     async def move(self, *, user_id: uuid.UUID, category_id: uuid.UUID, payload: CategoryMove) -> CategoryResponse:
         try:
