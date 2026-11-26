@@ -162,7 +162,7 @@ const usageSource = await readFile(
   new URL('../src/features/categories/category-usage.ts', import.meta.url),
   'utf8',
 )
-const { deletionBlocker } = await import(
+const { deletionBlocker, descendantUsage } = await import(
   `data:text/javascript;base64,${Buffer.from(
     ts.transpileModule(usageSource, {
       compilerOptions: {
@@ -204,4 +204,36 @@ test('deletion is blocked by children first, then by any usage', () => {
   )
   assert.match(deletionBlocker({ ...none, recurrences: 3 }, 0), /3 récurrences/)
   assert.match(deletionBlocker({ ...none, budgets: 1 }, 0), /1 budget/)
+})
+
+test('descendant usage adds sub-category counts to every ancestor, not to itself', () => {
+  const parents = new Map([
+    ['root', null],
+    ['mid', 'root'],
+    ['leaf', 'mid'],
+    ['loop', 'loop'],
+  ])
+  const usage = new Map([
+    [
+      'root',
+      { category_id: 'root', transactions: 5, recurrences: 0, budgets: 0 },
+    ],
+    [
+      'mid',
+      { category_id: 'mid', transactions: 1, recurrences: 0, budgets: 0 },
+    ],
+    [
+      'leaf',
+      { category_id: 'leaf', transactions: 2, recurrences: 1, budgets: 0 },
+    ],
+    [
+      'loop',
+      { category_id: 'loop', transactions: 9, recurrences: 0, budgets: 0 },
+    ],
+  ])
+  const totals = descendantUsage(parents, usage)
+  assert.deepEqual(totals.get('root'), { transactions: 3, recurrences: 1 })
+  assert.deepEqual(totals.get('mid'), { transactions: 2, recurrences: 1 })
+  assert.equal(totals.get('leaf'), undefined)
+  assert.equal(totals.get('loop'), undefined)
 })

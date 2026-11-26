@@ -28,3 +28,33 @@ export function deletionBlocker(
     return `${count(usage.budgets, 'budget l’utilise', 'budgets l’utilisent')}.`
   return null
 }
+
+export interface BranchCounts {
+  transactions: number
+  recurrences: number
+}
+
+/**
+ * Per category, the usage of all its descendants (not itself), so a folded
+ * parent still shows that its branch is in use.
+ */
+export function descendantUsage(
+  parents: Map<string, string | null>,
+  usage: Map<string, CategoryUsage>,
+): Map<string, BranchCounts> {
+  const totals = new Map<string, BranchCounts>()
+  for (const [id, counts] of usage) {
+    if (!counts.transactions && !counts.recurrences) continue
+    const seen = new Set<string>([id])
+    let parentId = parents.get(id) ?? null
+    while (parentId !== null && !seen.has(parentId)) {
+      seen.add(parentId)
+      const total = totals.get(parentId) ?? { transactions: 0, recurrences: 0 }
+      total.transactions += counts.transactions
+      total.recurrences += counts.recurrences
+      totals.set(parentId, total)
+      parentId = parents.get(parentId) ?? null
+    }
+  }
+  return totals
+}

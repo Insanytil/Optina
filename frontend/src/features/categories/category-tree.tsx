@@ -28,6 +28,7 @@ import {
   searchTree,
   visibleCategories,
 } from './tree'
+import { descendantUsage } from './category-usage'
 import type { DropZone } from './tree'
 
 export interface CategoryRowActions {
@@ -41,8 +42,24 @@ export interface CategoryRowActions {
 const COLUMNS =
   'grid grid-cols-[minmax(0,1fr)_2rem] items-center md:grid-cols-[minmax(0,1fr)_10rem_6rem_6rem_2rem]'
 
-const countCell = (value: number | undefined) =>
-  value ? value.toLocaleString('fr-FR') : '—'
+const formatCount = (value: number) => value.toLocaleString('fr-FR')
+
+/** Own count, plus a muted "+N" for what the sub-categories hold. */
+function UsageCell({ own, below }: { own: number; below: number }) {
+  return (
+    <span className="hidden text-right text-sm tabular-nums text-muted-foreground md:block">
+      {own ? formatCount(own) : '—'}
+      {below > 0 && (
+        <span
+          className="ml-1 text-xs text-muted-foreground/60"
+          title={`${formatCount(below)} dans les sous-catégories`}
+        >
+          +{formatCount(below)}
+        </span>
+      )}
+    </span>
+  )
+}
 
 function WalletsCell({
   category,
@@ -163,6 +180,14 @@ export function CategoryTree({
     zone: DropZone
   } | null>(null)
   const search = useMemo(() => searchTree(index, query), [index, query])
+  const below = useMemo(
+    () =>
+      descendantUsage(
+        new Map(categories.map((item) => [item.id, item.parent_id])),
+        usage,
+      ),
+    [categories, usage],
+  )
   // While searching, show matches in context and disable dragging.
   const rows = search
     ? visibleCategories(index, search.open).filter(({ category }) =>
@@ -373,12 +398,14 @@ export function CategoryTree({
                         walletNames={walletNames}
                       />
                     </span>
-                    <span className="hidden text-right text-sm tabular-nums text-muted-foreground md:block">
-                      {countCell(counts?.transactions)}
-                    </span>
-                    <span className="hidden text-right text-sm tabular-nums text-muted-foreground md:block">
-                      {countCell(counts?.recurrences)}
-                    </span>
+                    <UsageCell
+                      own={counts?.transactions ?? 0}
+                      below={below.get(category.id)?.transactions ?? 0}
+                    />
+                    <UsageCell
+                      own={counts?.recurrences ?? 0}
+                      below={below.get(category.id)?.recurrences ?? 0}
+                    />
                     <RowMenu
                       category={category}
                       disabled={busy}
