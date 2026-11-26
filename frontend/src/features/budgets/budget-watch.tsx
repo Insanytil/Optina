@@ -36,10 +36,13 @@ const levelStroke: Record<Level, string> = {
 export function BudgetWatch({
   month: day = todayIso(),
   hiddenWallets = [],
+  walletId,
   className,
 }: {
   month?: string
   hiddenWallets?: string[]
+  /** Only the budgets that cover this wallet. */
+  walletId?: string
   className?: string
 }) {
   const month = monthOf(day)
@@ -55,8 +58,10 @@ export function BudgetWatch({
   })
   const paths = categoryPaths(categories.data ?? [])
   const items = byAttention(
-    (status.data?.items ?? []).filter((item) =>
-      item.wallet_ids.some((id) => !hiddenWallets.includes(id)),
+    (status.data?.items ?? []).filter(
+      (item) =>
+        (!walletId || item.wallet_ids.includes(walletId)) &&
+        item.wallet_ids.some((id) => !hiddenWallets.includes(id)),
     ),
   )
   const open = items.find((item) => item.id === selected)

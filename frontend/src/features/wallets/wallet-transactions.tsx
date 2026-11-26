@@ -63,7 +63,10 @@ export function WalletTransactions({
   )
   const canCreate = categories.isSuccess && categories.data.length > 0
   return (
-    <section className="space-y-4" aria-labelledby="wallet-transactions-title">
+    <section
+      className="flex flex-col gap-4 lg:min-h-0 lg:flex-1"
+      aria-labelledby="wallet-transactions-title"
+    >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2
@@ -184,12 +187,12 @@ export function WalletTransactions({
               </p>
             </div>
           ) : (
-            <div className="relative overflow-x-auto rounded-xl border">
+            <div className="relative overflow-x-auto rounded-xl border lg:min-h-0 lg:overflow-y-auto">
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">
                   Mouvements du portefeuille {wallet.name}
                 </caption>
-                <thead className="border-b bg-muted/40 text-muted-foreground">
+                <thead className="sticky top-0 z-10 border-b bg-muted text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">Date</th>
                     <th className="px-4 py-3 font-medium">Libellé</th>
