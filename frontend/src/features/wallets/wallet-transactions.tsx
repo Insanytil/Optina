@@ -1,9 +1,7 @@
-import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowDownLeft, ArrowUpRight, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { Pencil, Repeat, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -11,22 +9,65 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { categoryKeys, loadCategoryTree } from '@/features/categories/api'
+import type { Category } from '@/features/categories/api'
+import { CategorySearch } from '@/features/categories/category-search'
 import { listTransactions, transactionKeys } from '@/features/transactions/api'
 import type {
   Transaction,
   TransactionFilters,
 } from '@/features/transactions/api'
-import { CategorySearch } from '@/features/categories/category-search'
-import { TransactionForm } from '@/features/transactions/transaction-form'
 import { DeleteTransactionDialog } from '@/features/transactions/delete-transaction-dialog'
+import { TransactionForm } from '@/features/transactions/transaction-form'
+import { cn } from 'cn'
 import { formatBalance } from './api'
 import type { Wallet } from './api'
+import { rootColors } from './category-colors'
 import type { WalletDateRange } from './period'
+import { groupByDay } from './wallet-model'
 
-const selectClass =
-  'h-10 min-w-0 rounded-lg border border-input bg-background px-3 text-sm'
+const PAGE_SIZE = 50
+const chipClass =
+  'h-8 min-w-0 rounded-full border bg-background px-3 text-sm text-foreground'
+const signed = (t: Transaction) =>
+  `${t.type === 'income' ? '+' : '−'}${formatBalance(t.amount)}`
+const dayLabel = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('fr-BE', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+const longDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('fr-BE', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+const money = (value: number) =>
+  `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatBalance(Math.abs(value).toFixed(2))}`
 
+/** Color of each category: the color of its top-level ancestor. */
+function categoryColors(categories: Category[]) {
+  const roots = rootColors(categories)
+  const byId = new Map(categories.map((c) => [c.id, c]))
+  const colors = new Map<string, string>()
+  for (const category of categories) {
+    let node: Category | undefined = category
+    while (node?.parent_id) node = byId.get(node.parent_id)
+    colors.set(category.id, (node && roots.get(node.id)) ?? '#94a3b8')
+  }
+  return colors
+}
+
+/** Movements of one wallet over a period, grouped by day. */
 export function WalletTransactions({
   wallet,
   period,
@@ -34,296 +75,279 @@ export function WalletTransactions({
   wallet: Wallet
   period: WalletDateRange
 }) {
-  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [q, setQ] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [type, setType] = useState('')
-  const [kind, setKind] = useState('')
-  const [editor, setEditor] = useState<Transaction | 'new' | null>(null)
+  const [origin, setOrigin] = useState<'all' | 'recurring' | 'manual'>('all')
+  const [selected, setSelected] = useState<Transaction | null>(null)
+  const [editor, setEditor] = useState<Transaction | null>(null)
   const [deleting, setDeleting] = useState<Transaction | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
+  const listRef = useRef<HTMLDivElement>(null)
+  const endRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setQ(search.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
   const categories = useQuery({
     queryKey: categoryKeys.tree,
     queryFn: ({ signal }) => loadCategoryTree(signal),
   })
+  const names = useMemo(
+    () => new Map(categories.data?.map((c) => [c.id, c.name])),
+    [categories.data],
+  )
+  const colors = useMemo(
+    () => categoryColors(categories.data ?? []),
+    [categories.data],
+  )
+
   const filters: TransactionFilters = {
     wallet_id: wallet.id,
     ...period,
     category_id: categoryId,
     type,
-    kind,
+    kind: '',
     include_subcategories: true,
+    q,
+    origin,
   }
-  const query = useQuery({
-    queryKey: transactionKeys.page(page, filters),
-    queryFn: ({ signal }) => listTransactions(page, filters, signal),
+  const query = useInfiniteQuery({
+    queryKey: [...transactionKeys.all, 'wallet-list', filters],
+    queryFn: ({ pageParam, signal }) =>
+      listTransactions(pageParam, filters, signal, PAGE_SIZE),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last.pagination.page < last.pagination.total_pages
+        ? last.pagination.page + 1
+        : undefined,
   })
-  const categoryNames = new Map(
-    categories.data?.map((item) => [item.id, item.name]),
+  const items = useMemo(
+    () => query.data?.pages.flatMap((page) => page.items) ?? [],
+    [query.data],
   )
-  const canCreate = categories.isSuccess && categories.data.length > 0
+  const groups = useMemo(() => groupByDay(items), [items])
+  const first = query.data?.pages[0]
+  const filtered = !!(q || categoryId || type || origin !== 'all')
+
+  // Loads the next page when the end of the list comes into view.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
+  useEffect(() => {
+    const end = endRef.current
+    if (!end || !hasNextPage) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isFetchingNextPage) void fetchNextPage()
+      },
+      { root: listRef.current, rootMargin: '200px' },
+    )
+    observer.observe(end)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, items.length])
+
+  // Keeps the open detail in sync after an edit.
+  const current = selected
+    ? (items.find((item) => item.id === selected.id) ?? selected)
+    : null
+
   return (
     <section
-      className="flex flex-col gap-4 lg:min-h-0 lg:flex-1"
-      aria-labelledby="wallet-transactions-title"
+      className="flex flex-col gap-3 lg:min-h-0 lg:flex-1"
+      aria-label="Transactions de la période"
     >
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2
-            id="wallet-transactions-title"
-            className="text-xl font-semibold tracking-tight"
-          >
-            Transactions de la période
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Uniquement les mouvements de ce portefeuille.
-          </p>
-        </div>
-        <Button disabled={!canCreate} onClick={() => setEditor('new')}>
-          <Plus aria-hidden="true" />
-          Ajouter une transaction
-        </Button>
-      </header>
-      {categories.isError && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 text-sm"
-        >
-          <p>Impossible de charger les catégories.</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void categories.refetch()}
-          >
-            Réessayer
-          </Button>
-        </div>
-      )}
-      {categories.isSuccess && !categories.data.length && (
-        <p className="rounded-lg border bg-muted/40 p-4 text-sm">
-          Pour ajouter une transaction,{' '}
-          <Link to="/categories" className="underline">
-            créez une catégorie
-          </Link>
-          .
-        </p>
-      )}
-      <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label htmlFor="wallet-category-filter">Catégorie</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-40 flex-1">
+          <span className="sr-only">Rechercher un libellé</span>
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <input
+            id="wallet-transaction-search"
+            type="search"
+            value={search}
+            placeholder="Rechercher…"
+            className={cn(chipClass, 'w-full pl-8')}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <div className="w-48 [&_input]:h-8 [&_input]:rounded-full">
           <CategorySearch
             id="wallet-category-filter"
             value={categoryId}
-            onChange={(value) => {
-              setCategoryId(value)
-              setPage(1)
-            }}
+            onChange={setCategoryId}
             categories={categories.data ?? []}
+            placeholder="Catégorie"
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="wallet-type-filter">Type</Label>
-          <select
-            id="wallet-type-filter"
-            className={`${selectClass} w-full`}
-            value={type}
-            onChange={(event) => {
-              setType(event.target.value)
-              setPage(1)
+        <select
+          id="wallet-type-filter"
+          aria-label="Type"
+          className={cn(chipClass, type && 'border-primary')}
+          value={type}
+          onChange={(event) => setType(event.target.value)}
+        >
+          <option value="">Dépenses et rentrées</option>
+          <option value="expense">Dépenses</option>
+          <option value="income">Rentrées</option>
+        </select>
+        <select
+          id="wallet-origin-filter"
+          aria-label="Origine"
+          className={cn(chipClass, origin !== 'all' && 'border-primary')}
+          value={origin}
+          onChange={(event) => setOrigin(event.target.value as typeof origin)}
+        >
+          <option value="all">Fixes et variables</option>
+          <option value="recurring">Fixes</option>
+          <option value="manual">Variables</option>
+        </select>
+        {filtered && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearch('')
+              setQ('')
+              setCategoryId('')
+              setType('')
+              setOrigin('all')
             }}
           >
-            <option value="">Dépenses et rentrées</option>
-            <option value="expense">Dépenses</option>
-            <option value="income">Rentrées</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="wallet-kind-filter">Mouvements</Label>
-          <select
-            id="wallet-kind-filter"
-            className={`${selectClass} w-full`}
-            value={kind}
-            onChange={(event) => {
-              setKind(event.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="">Tous les mouvements</option>
-            <option value="standard">Transactions ordinaires</option>
-            <option value="opening_balance">Solde initial</option>
-          </select>
-        </div>
-        {categoryId && (
-          <p className="text-xs text-muted-foreground sm:col-span-3">
-            Les sous-catégories sont incluses dans le filtre.
-          </p>
+            <X aria-hidden="true" />
+            Effacer
+          </Button>
         )}
       </div>
-      {query.isPending ? (
-        <p role="status" className="py-10 text-center text-muted-foreground">
-          Chargement des transactions…
-        </p>
-      ) : query.isError ? (
-        <div className="space-y-3 rounded-xl border p-6">
-          <p role="alert" className="text-sm text-destructive">
-            {query.error.message}
+
+      <div
+        ref={listRef}
+        className="min-h-40 overflow-y-auto rounded-xl border bg-card lg:min-h-0 lg:flex-1"
+      >
+        {query.isPending ? (
+          <p role="status" className="py-10 text-center text-muted-foreground">
+            Chargement des transactions…
           </p>
-          <Button
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            Réessayer
-          </Button>
-        </div>
-      ) : (
-        <>
-          {query.data.items.length === 0 ? (
-            <div className="rounded-xl border border-dashed px-6 py-12 text-center">
-              <h3 className="font-medium">Aucun mouvement sur cette période</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Ajoutez une transaction, changez la période ou ajustez les
-                filtres.
-              </p>
-            </div>
-          ) : (
-            <div className="relative overflow-x-auto rounded-xl border lg:min-h-0 lg:overflow-y-auto">
-              <table className="w-full text-left text-sm">
-                <caption className="sr-only">
-                  Mouvements du portefeuille {wallet.name}
-                </caption>
-                <thead className="sticky top-0 z-10 border-b bg-muted text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Libellé</th>
-                    <th className="px-4 py-3 font-medium">Catégorie</th>
-                    <th className="px-4 py-3 text-right font-medium">
-                      Montant
-                    </th>
-                    <th className="px-4 py-3">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {query.data.items.map((transaction) => (
-                    <tr key={transaction.id}>
-                      <td className="whitespace-nowrap px-4 py-4 text-muted-foreground">
-                        {transaction.date.split('-').reverse().join('/')}
-                      </td>
-                      <td className="max-w-80 px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          {transaction.type === 'expense' ? (
-                            <ArrowUpRight
-                              className="size-4 shrink-0 text-muted-foreground"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <ArrowDownLeft
-                              className="size-4 shrink-0 text-emerald-700 dark:text-emerald-400"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span
-                            className="truncate font-medium"
-                            title={transaction.label}
-                          >
-                            {transaction.label}
-                          </span>
-                        </div>
-                        {transaction.recurrence_id && (
-                          <span className="text-xs text-muted-foreground">
-                            Récurrente
-                          </span>
+        ) : query.isError ? (
+          <div className="space-y-3 p-6">
+            <p role="alert" className="text-sm text-destructive">
+              {query.error.message}
+            </p>
+            <Button variant="outline" onClick={() => void query.refetch()}>
+              Réessayer
+            </Button>
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="font-medium">
+              {filtered
+                ? 'Aucun mouvement ne correspond aux filtres'
+                : 'Aucun mouvement sur cette période'}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {filtered
+                ? 'Effacez ou changez les filtres.'
+                : 'Changez la période ou ajoutez une transaction.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            {groups.map((group) => (
+              <section key={group.date} aria-label={longDate(group.date)}>
+                <h3 className="sticky top-0 z-10 flex justify-between border-b bg-muted px-4 py-1.5 text-xs font-medium text-muted-foreground">
+                  <span className="capitalize">{dayLabel(group.date)}</span>
+                  <span className="tabular-nums">{money(group.net)}</span>
+                </h3>
+                <ul className="divide-y">
+                  {group.items.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none',
+                          current?.id === item.id && 'bg-muted/50',
                         )}
-                        {transaction.kind === 'opening_balance' && (
-                          <span className="mt-1 inline-block rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                            Solde initial · hors indicateurs
-                          </span>
-                        )}
-                        {transaction.note && (
-                          <p
-                            className="mt-1 truncate text-xs text-muted-foreground"
-                            title={transaction.note}
-                          >
-                            {transaction.note}
-                          </p>
-                        )}
-                      </td>
-                      <td className="max-w-48 truncate px-4 py-4">
-                        {transaction.category_id
-                          ? (categoryNames.get(transaction.category_id) ??
-                            (categories.isError
-                              ? 'Catégorie indisponible'
-                              : 'Chargement…'))
-                          : '—'}
-                      </td>
-                      <td
-                        className={`whitespace-nowrap px-4 py-4 text-right font-medium tabular-nums ${transaction.type === 'income' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
+                        onClick={() => setSelected(item)}
                       >
-                        {transaction.type === 'income' ? '+' : '−'}
-                        {formatBalance(transaction.amount)}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={
-                              !categories.isSuccess &&
-                              transaction.kind !== 'opening_balance'
-                            }
-                            aria-label={`Modifier ${transaction.label}`}
-                            onClick={() => setEditor(transaction)}
-                          >
-                            <Pencil aria-hidden="true" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-destructive hover:text-destructive"
-                            aria-label={`Supprimer ${transaction.label}`}
-                            onClick={() => setDeleting(transaction)}
-                          >
-                            <Trash2 aria-hidden="true" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
+                        <span
+                          aria-hidden="true"
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{
+                            background: item.category_id
+                              ? colors.get(item.category_id)
+                              : 'var(--muted-foreground)',
+                          }}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">
+                            {item.label}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {item.kind === 'opening_balance'
+                              ? 'Solde initial'
+                              : item.category_id
+                                ? (names.get(item.category_id) ?? '…')
+                                : 'Sans catégorie'}
+                          </span>
+                        </span>
+                        {item.recurrence_id && (
+                          <Repeat
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                            aria-label="Récurrente"
+                          />
+                        )}
+                        <span
+                          className={cn(
+                            'shrink-0 text-sm font-medium tabular-nums',
+                            item.type === 'income' &&
+                              'text-emerald-600 dark:text-emerald-400',
+                          )}
+                        >
+                          {signed(item)}
+                        </span>
+                      </button>
+                    </li>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {(query.data.pagination.total_pages > 1 || page > 1) && (
-            <nav
-              aria-label="Pagination des transactions"
-              className="flex flex-wrap items-center justify-between gap-3"
+                </ul>
+              </section>
+            ))}
+            <div ref={endRef} className="h-px" />
+            {query.isFetchingNextPage && (
+              <p
+                role="status"
+                className="py-3 text-center text-xs text-muted-foreground"
+              >
+                Chargement de la suite…
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {first && first.pagination.total > 0 && (
+        <p className="flex shrink-0 justify-between px-1 text-sm text-muted-foreground">
+          <span>
+            {first.pagination.total} mouvement
+            {first.pagination.total > 1 ? 's' : ''}
+            {filtered ? ' filtrés' : ''}
+          </span>
+          {first.net !== undefined && (
+            <span
+              className={cn(
+                'font-medium tabular-nums',
+                Number(first.net) < 0
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-emerald-600 dark:text-emerald-400',
+              )}
             >
-              <span className="text-sm text-muted-foreground">
-                Page {page} sur{' '}
-                {Math.max(page, query.data.pagination.total_pages)} ·{' '}
-                {query.data.pagination.total} mouvement(s)
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                >
-                  Précédent
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={page >= query.data.pagination.total_pages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Suivant
-                </Button>
-              </div>
-            </nav>
+              {money(Number(first.net))}
+            </span>
           )}
-        </>
+        </p>
       )}
       <p
         role="status"
@@ -331,6 +355,91 @@ export function WalletTransactions({
       >
         {notice}
       </p>
+
+      <Sheet
+        open={current !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null)
+        }}
+      >
+        <SheetContent className="w-full sm:max-w-md">
+          {current && (
+            <>
+              <SheetHeader>
+                <SheetTitle>{current.label}</SheetTitle>
+                <SheetDescription className="capitalize">
+                  {longDate(current.date)}
+                </SheetDescription>
+              </SheetHeader>
+              <div className="grid gap-5 px-4">
+                <p
+                  className={cn(
+                    'text-3xl font-semibold tabular-nums',
+                    current.type === 'income' &&
+                      'text-emerald-600 dark:text-emerald-400',
+                  )}
+                >
+                  {signed(current)}
+                  <span className="ml-1 text-lg text-muted-foreground">€</span>
+                </p>
+                <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
+                  <dt className="text-muted-foreground">Catégorie</dt>
+                  <dd className="flex items-center gap-2">
+                    {current.category_id && (
+                      <span
+                        aria-hidden="true"
+                        className="size-2.5 rounded-full"
+                        style={{ background: colors.get(current.category_id) }}
+                      />
+                    )}
+                    {current.kind === 'opening_balance'
+                      ? 'Solde initial'
+                      : current.category_id
+                        ? names.get(current.category_id)
+                        : 'Sans catégorie'}
+                  </dd>
+                  <dt className="text-muted-foreground">Type</dt>
+                  <dd>{current.type === 'income' ? 'Rentrée' : 'Dépense'}</dd>
+                  <dt className="text-muted-foreground">Origine</dt>
+                  <dd>
+                    {current.recurrence_id
+                      ? 'Fixe (récurrence)'
+                      : 'Variable (saisie)'}
+                  </dd>
+                  {current.note && (
+                    <>
+                      <dt className="text-muted-foreground">Note</dt>
+                      <dd className="whitespace-pre-wrap">{current.note}</dd>
+                    </>
+                  )}
+                </dl>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={
+                      !categories.isSuccess &&
+                      current.kind !== 'opening_balance'
+                    }
+                    onClick={() => setEditor(current)}
+                  >
+                    <Pencil aria-hidden="true" />
+                    Modifier
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleting(current)}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    Supprimer
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
       <Dialog
         open={editor !== null}
         onOpenChange={(open) => {
@@ -343,11 +452,9 @@ export function WalletTransactions({
         >
           <DialogHeader>
             <DialogTitle>
-              {editor === 'new'
-                ? 'Ajouter une transaction'
-                : editor?.kind === 'opening_balance'
-                  ? 'Modifier le solde initial'
-                  : 'Modifier la transaction'}
+              {editor?.kind === 'opening_balance'
+                ? 'Modifier le solde initial'
+                : 'Modifier la transaction'}
             </DialogTitle>
             <DialogDescription>
               Portefeuille : {wallet.name}. Le solde sera mis à jour à
@@ -355,25 +462,21 @@ export function WalletTransactions({
             </DialogDescription>
           </DialogHeader>
           {editor &&
-            (categories.isSuccess ||
-              (editor !== 'new' && editor.kind === 'opening_balance')) && (
+            (categories.isSuccess || editor.kind === 'opening_balance') && (
               <TransactionForm
-                key={editor === 'new' ? 'new' : editor.id}
-                transaction={editor === 'new' ? undefined : editor}
+                key={editor.id}
+                transaction={editor}
+                initialCategoryId=""
                 wallets={[wallet]}
                 categories={categories.data ?? []}
                 lockedWallet
                 initialWalletId={wallet.id}
-                initialCategoryId={categoryId}
                 onBusy={setBusy}
                 onCancel={() => setEditor(null)}
                 onSaved={() => {
                   setEditor(null)
                   setBusy(false)
-                  setPage(1)
-                  setNotice(
-                    'Le mouvement a été enregistré et les indicateurs mis à jour.',
-                  )
+                  setNotice('Le mouvement a été enregistré.')
                 }}
               />
             )}
@@ -385,8 +488,8 @@ export function WalletTransactions({
           onClose={() => setDeleting(null)}
           onDeleted={() => {
             setDeleting(null)
-            setNotice('Le mouvement a été supprimé et le solde mis à jour.')
-            if (query.data?.items.length === 1 && page > 1) setPage(page - 1)
+            setSelected(null)
+            setNotice('Le mouvement a été supprimé.')
           }}
         />
       )}

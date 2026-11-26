@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Repeat } from 'lucide-react'
 import { Cell, Pie, PieChart } from 'recharts'
@@ -8,7 +8,7 @@ import { categoryKeys, loadCategoryTree } from '@/features/categories/api'
 import { listTransactions } from '@/features/transactions/api'
 import { cn } from 'cn'
 import { formatBalance, loadCategoryBreakdown, walletKeys } from './api'
-import type { Origin } from './api'
+import type { Flow, Origin } from './api'
 import { delta, percent, rootColors, shade } from './category-colors'
 import { periodMonth, shiftPeriodMonth } from './period'
 import type { WalletDateRange } from './period'
@@ -42,12 +42,29 @@ export function CategoryDrilldownChart({
   period,
   categoryId,
   onSelect,
+  type = 'expense',
+  className,
 }: {
   walletId: string
   period: WalletDateRange
   categoryId: string | null
   onSelect: (id: string | null) => void
+  type?: Flow
+  className?: string
 }) {
+  const titleId = useId()
+  const words =
+    type === 'income'
+      ? {
+          title: 'Répartition des rentrées',
+          of: 'rentrées',
+          none: 'Aucune rentrée',
+        }
+      : {
+          title: 'Répartition des dépenses',
+          of: 'dépenses',
+          none: 'Aucune dépense',
+        }
   const [origin, setOrigin] = useState<Origin>('all')
   const [hovered, setHovered] = useState<string | null>(null)
   const previous = periodMonth(period) ? shiftPeriodMonth(period, -1) : null
@@ -59,6 +76,7 @@ export function CategoryDrilldownChart({
       period.date_to,
       categoryId,
       origin,
+      type,
     ),
     queryFn: ({ signal }) =>
       loadCategoryBreakdown(
@@ -68,6 +86,7 @@ export function CategoryDrilldownChart({
         categoryId,
         origin,
         signal,
+        type,
       ),
     placeholderData: (data) => data,
   })
@@ -78,6 +97,7 @@ export function CategoryDrilldownChart({
       previous?.date_to ?? '',
       categoryId,
       origin,
+      type,
     ),
     queryFn: ({ signal }) =>
       loadCategoryBreakdown(
@@ -87,6 +107,7 @@ export function CategoryDrilldownChart({
         categoryId,
         origin,
         signal,
+        type,
       ),
     enabled: !!previous,
   })
@@ -144,8 +165,11 @@ export function CategoryDrilldownChart({
 
   return (
     <section
-      className="flex min-w-0 flex-col rounded-xl border bg-card p-4 sm:p-5 lg:min-h-0 lg:flex-1"
-      aria-labelledby="category-chart-title"
+      className={cn(
+        'flex min-w-0 flex-col rounded-xl border bg-card p-4 sm:p-5 lg:min-h-0 lg:flex-1',
+        className,
+      )}
+      aria-labelledby={titleId}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && categoryId) {
           event.stopPropagation()
@@ -154,12 +178,12 @@ export function CategoryDrilldownChart({
       }}
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="category-chart-title" className="text-sm font-semibold">
-          Répartition des dépenses
+        <h2 id={titleId} className="text-sm font-semibold">
+          {words.title}
         </h2>
         <div
           role="radiogroup"
-          aria-label="Origine des dépenses"
+          aria-label={`Origine des ${words.of}`}
           className="inline-flex rounded-lg bg-muted p-[3px]"
         >
           {ORIGINS.map((option) => (
@@ -243,11 +267,11 @@ export function CategoryDrilldownChart({
           </Button>
         </div>
       ) : (
-        <>
+        <div className="flex flex-col lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-center lg:gap-8">
           <div
-            className="relative mx-auto mt-2 size-52 shrink-0 sm:size-64"
+            className="relative mx-auto mt-2 size-52 shrink-0 sm:size-56 lg:mt-0 lg:size-40 xl:size-44 2xl:size-52"
             role="img"
-            aria-label={`Répartition de ${formatBalance(total.toFixed(2))} de dépenses, ${levelName}`}
+            aria-label={`Répartition de ${formatBalance(total.toFixed(2))} de ${words.of}, ${levelName}`}
           >
             {slices.length > 0 ? (
               <ResponsiveChart>
@@ -301,19 +325,21 @@ export function CategoryDrilldownChart({
               categoryId={categoryId}
               period={period}
               origin={origin}
+              type={type}
             />
           ) : slices.length === 0 ? (
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              Aucune dépense à ce niveau sur la période.
+              {words.none} à ce niveau sur la période.
             </p>
           ) : (
             <ul
-              className="mt-4 divide-y lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+              className="mt-4 divide-y lg:mt-0 lg:max-h-full lg:overflow-y-auto"
               aria-label="Catégories"
             >
               {slices.map((slice) => (
                 <li key={slice.key}>
                   <LegendRow
+                    type={type}
                     slice={slice}
                     active={hovered === slice.key}
                     onHover={setHovered}
@@ -327,7 +353,7 @@ export function CategoryDrilldownChart({
               ))}
             </ul>
           )}
-        </>
+        </div>
       )}
     </section>
   )
@@ -338,7 +364,9 @@ function LegendRow({
   active,
   onHover,
   onOpen,
+  type,
 }: {
+  type: Flow
   slice: Slice
   active: boolean
   onHover: (key: string | null) => void
@@ -358,7 +386,7 @@ function LegendRow({
       <span className="w-20 shrink-0 text-right font-medium tabular-nums">
         {formatBalance(slice.amount.toFixed(2))}
       </span>
-      <Change value={slice.change} />
+      <Change value={slice.change} type={type} />
       <ChevronRight
         className={cn(
           'size-3.5 shrink-0 text-muted-foreground',
@@ -398,14 +426,14 @@ function LegendRow({
   )
 }
 
-function Change({ value }: { value: number | null }) {
+function Change({ value, type }: { value: number | null; type: Flow }) {
   return (
     <span
       className={cn(
         'hidden w-14 shrink-0 text-right text-xs tabular-nums sm:block',
         value === null || value === 0
           ? 'text-muted-foreground'
-          : value > 0
+          : value > 0 === (type === 'expense')
             ? 'text-rose-600 dark:text-rose-400'
             : 'text-emerald-600 dark:text-emerald-400',
       )}
@@ -425,7 +453,9 @@ function LeafTransactions({
   categoryId,
   period,
   origin,
+  type,
 }: {
+  type: Flow
   walletId: string
   categoryId: string
   period: WalletDateRange
@@ -434,7 +464,7 @@ function LeafTransactions({
   const filters = {
     wallet_id: walletId,
     category_id: categoryId,
-    type: 'expense',
+    type,
     kind: 'standard',
     date_from: period.date_from,
     date_to: period.date_to,
@@ -461,7 +491,7 @@ function LeafTransactions({
       </p>
     )
   return (
-    <div className="mt-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+    <div className="mt-4 lg:mt-0 lg:max-h-full lg:overflow-y-auto">
       <ul className="divide-y" aria-label="Transactions de la catégorie">
         {items.map((item) => (
           <li

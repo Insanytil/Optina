@@ -33,9 +33,13 @@ export interface TransactionFilters {
   date_from: string
   date_to: string
   include_subcategories: boolean
+  q?: string
+  origin?: 'all' | 'recurring' | 'manual'
 }
 export interface TransactionPage {
   items: Transaction[]
+  /** Income minus expenses over every matching transaction. */
+  net?: string
   pagination: {
     page: number
     page_size: number
@@ -54,8 +58,12 @@ export function listTransactions(
   page: number,
   filters: TransactionFilters,
   signal?: AbortSignal,
+  pageSize = 20,
 ) {
-  const query = new URLSearchParams({ page: String(page), page_size: '20' })
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
   for (const [key, value] of Object.entries(filters))
     if (value !== '') query.set(key, String(value))
   return api<TransactionPage>(`/transactions?${query}`, { signal })

@@ -89,3 +89,87 @@ export function lastReal(curve: CurvePoint[]) {
     if (curve[i].real !== null) return curve[i]
   return undefined
 }
+
+export interface DayGroup<T> {
+  date: string
+  net: number
+  items: T[]
+}
+
+/** Consecutive movements of the same day, with the day's signed total. */
+export function groupByDay<T extends Movement>(items: T[]): DayGroup<T>[] {
+  const groups: DayGroup<T>[] = []
+  for (const item of items) {
+    let group = groups.at(-1)
+    if (group?.date !== item.date) {
+      group = { date: item.date, net: 0, items: [] }
+      groups.push(group)
+    }
+    group.items.push(item)
+    group.net += signed(item)
+  }
+  for (const group of groups) group.net = Math.round(group.net * 100) / 100
+  return groups
+}
+
+export type Note =
+  | { kind: 'rise'; categoryId: string; name: string; ratio: number }
+  | { kind: 'due'; label: string; days: number; amount: number }
+
+/**
+ * Up to three facts worth a look: the biggest category rises against the
+ * previous period, then the largest expense due within a week.
+ */
+export function notes(
+  categories: { id: string | null; name: string; amount: number }[],
+  previous: Map<string, number>,
+  upcoming: (Movement & { label: string })[],
+  today: string,
+): Note[] {
+  const rises: Note[] = categories
+    .flatMap((category) => {
+      const before = category.id ? (previous.get(category.id) ?? 0) : 0
+      const delta = category.amount - before
+      return category.id && before >= 20 && delta >= 20 && delta / before >= 0.2
+        ? [
+            {
+              id: category.id,
+              name: category.name,
+              delta,
+              ratio: delta / before,
+            },
+          ]
+        : []
+    })
+    .sort((a, b) => b.delta - a.delta)
+    .slice(0, 2)
+    .map(({ id, name, ratio }) => ({
+      kind: 'rise',
+      categoryId: id,
+      name,
+      ratio,
+    }))
+  const week = addDays(today, 7)
+  const due = upcoming
+    .filter(
+      (m) =>
+        m.type === 'expense' &&
+        m.date > today &&
+        m.date <= week &&
+        Number(m.amount) >= 100,
+    )
+    .sort((a, b) => Number(b.amount) - Number(a.amount))
+    .at(0)
+  if (due)
+    rises.push({
+      kind: 'due',
+      label: due.label,
+      amount: Number(due.amount),
+      days: Math.round(
+        (Date.parse(`${due.date}T12:00:00Z`) -
+          Date.parse(`${today}T12:00:00Z`)) /
+          86400000,
+      ),
+    })
+  return rises
+}

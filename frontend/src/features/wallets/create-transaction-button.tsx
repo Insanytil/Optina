@@ -12,9 +12,19 @@ import {
 } from '@/components/ui/dialog'
 import { categoryKeys, loadCategoryTree } from '@/features/categories/api'
 import { TransactionForm } from '@/features/transactions/transaction-form'
+import { cn } from 'cn'
 import type { Wallet } from './api'
 
-export function CreateTransactionButton({ wallet }: { wallet: Wallet }) {
+/** Opens the new-transaction form; `round` shows a floating + button. */
+export function CreateTransactionButton({
+  wallet,
+  className,
+  round = false,
+}: {
+  wallet: Wallet
+  className?: string
+  round?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const categories = useQuery({
@@ -25,11 +35,16 @@ export function CreateTransactionButton({ wallet }: { wallet: Wallet }) {
   return (
     <>
       <Button
-        className="bg-emerald-600 text-white hover:bg-emerald-500"
+        className={cn(
+          'bg-emerald-600 text-white hover:bg-emerald-500',
+          round && 'size-14 rounded-full shadow-lg [&_svg]:size-6',
+          className,
+        )}
+        aria-label={round ? 'Ajouter une transaction' : undefined}
         onClick={() => setOpen(true)}
       >
         <Plus aria-hidden="true" />
-        Ajouter une transaction
+        {!round && 'Ajouter une transaction'}
       </Button>
       <Dialog
         open={open}
