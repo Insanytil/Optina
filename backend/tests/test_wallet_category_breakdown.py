@@ -19,7 +19,7 @@ class WalletCategoryBreakdownTests(unittest.IsolatedAsyncioTestCase):
         self.db, self.repo = AsyncMock(), AsyncMock()
         self.service = WalletService(self.db, self.repo, AsyncMock())
         self.user_id, self.wallet_id, self.parent_id = uuid4(), uuid4(), uuid4()
-        self.repo.get_by_id.return_value = SimpleNamespace(id=self.wallet_id, name="Compte", balance=Decimal("10.00"),
+        self.repo.get_by_id.return_value = SimpleNamespace(id=self.wallet_id, name="Compte", color="#3b82f6", balance=Decimal("10.00"),
             created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         self.repo.direct_category_expenses.return_value = Decimal("1.23")
         self.repo.category_breakdown.return_value = [

@@ -13,6 +13,8 @@ from app.modules.wallet.repository.wallet_repository import WalletRepository
 from app.modules.wallet.schemas import WalletCategoryBreakdown, WalletCategoryParams, WalletCreate, WalletPeriod, WalletResponse, WalletSummaryResponse, WalletUpdate
 
 
+from app.modules.wallet.colors import next_color
+
 class WalletService:
     def __init__(self, db: AsyncSession, repository: WalletRepository, transactions: TransactionRepository | None = None):
         self.db = db
@@ -40,7 +42,8 @@ class WalletService:
 
     async def create(self, *, user_id: uuid.UUID, payload: WalletCreate) -> WalletResponse:
         try:
-            wallet = await self.repository.create(user_id=user_id, name=payload.name, balance=payload.balance)
+            color = payload.color or next_color(await self.repository.used_colors(user_id=user_id))
+            wallet = await self.repository.create(user_id=user_id, name=payload.name, color=color, balance=payload.balance)
             if payload.balance != 0:
                 await self.transactions.create(
                     user_id=user_id, wallet_id=wallet.id, category_id=None,
@@ -57,7 +60,7 @@ class WalletService:
 
     async def update(self, *, wallet_id: uuid.UUID, user_id: uuid.UUID, payload: WalletUpdate) -> WalletResponse:
         try:
-            wallet = await self.repository.rename(wallet_id=wallet_id, user_id=user_id, name=payload.name)
+            wallet = await self.repository.rename(wallet_id=wallet_id, user_id=user_id, name=payload.name, color=payload.color)
             if wallet is None:
                 raise WalletNotFoundError()
             response = WalletResponse.model_validate(wallet)

@@ -18,6 +18,7 @@ class Wallet(BaseEntity):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     balance: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    color: Mapped[str] = mapped_column(String(7), nullable=False, server_default="#3b82f6")
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id"),
         nullable=False,

@@ -20,7 +20,7 @@ class WalletRouterTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.service = AsyncMock()
         self.user_id = uuid4()
-        self.wallet = WalletResponse(id=uuid4(), name="Courant", balance=Decimal("12.34"), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        self.wallet = WalletResponse(id=uuid4(), name="Courant", color="#3b82f6", balance=Decimal("12.34"), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         app.dependency_overrides[get_wallet_service] = lambda: self.service
 
     def tearDown(self):

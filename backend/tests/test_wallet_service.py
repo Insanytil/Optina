@@ -22,14 +22,15 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
         self.user_id = uuid4()
         self.repo.has_transactions.return_value = False
         self.repo.has_live_recurrences.return_value = False
-        self.wallet = SimpleNamespace(id=uuid4(), name="Courant", balance=Decimal("12.34"), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        self.wallet = SimpleNamespace(id=uuid4(), name="Courant", color="#3b82f6", balance=Decimal("12.34"), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         self.repo.lock_many.return_value = [self.wallet]
+        self.repo.used_colors.return_value = []
 
     async def test_create_commits_and_preserves_amount(self):
         self.repo.create.return_value = self.wallet
         payload = WalletCreate(name=" Courant ", balance="12.34")
         result = await self.service.create(user_id=self.user_id, payload=payload)
-        self.repo.create.assert_awaited_once_with(user_id=self.user_id, name="Courant", balance=Decimal("12.34"))
+        self.repo.create.assert_awaited_once_with(user_id=self.user_id, name="Courant", color="#3b82f6", balance=Decimal("12.34"))
         self.db.commit.assert_awaited_once()
         self.assertEqual(result.model_dump(mode="json")["balance"], "12.34")
 
@@ -40,11 +41,35 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
             await self.service.create(user_id=self.user_id, payload=WalletCreate(name="Courant"))
         self.db.rollback.assert_awaited_once()
 
+    async def test_create_picks_first_unused_color_unless_one_is_given(self):
+        self.repo.create.return_value = self.wallet
+        self.repo.used_colors.return_value = ["#3b82f6", "#8b5cf6"]
+        await self.service.create(user_id=self.user_id, payload=WalletCreate(name="Livret"))
+        self.assertEqual(self.repo.create.call_args.kwargs["color"], "#f59e0b")
+        await self.service.create(user_id=self.user_id, payload=WalletCreate(name="Joint", color="#EC4899"))
+        self.assertEqual(self.repo.create.call_args.kwargs["color"], "#ec4899")
+
+    async def test_update_passes_new_color(self):
+        self.repo.rename.return_value = self.wallet
+        await self.service.update(wallet_id=self.wallet.id, user_id=self.user_id, payload=WalletUpdate(name="Courant", color="#06b6d4"))
+        self.repo.rename.assert_awaited_once_with(wallet_id=self.wallet.id, user_id=self.user_id, name="Courant", color="#06b6d4")
+
+    def test_invalid_color_is_rejected(self):
+        from pydantic import ValidationError
+        for value in ("blue", "#12345", "#gggggg"):
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                WalletUpdate(name="Courant", color=value)
+
+    def test_next_color_reuses_least_used_once_palette_is_full(self):
+        from app.modules.wallet.colors import WALLET_COLORS, next_color
+        used = list(WALLET_COLORS) + [WALLET_COLORS[0]]
+        self.assertEqual(next_color(used), WALLET_COLORS[1])
+
     async def test_missing_or_foreign_wallet_update_does_not_commit(self):
         self.repo.rename.return_value = None
         with self.assertRaises(WalletNotFoundError):
             await self.service.update(wallet_id=self.wallet.id, user_id=self.user_id, payload=WalletUpdate(name="Épargne"))
-        self.repo.rename.assert_awaited_once_with(wallet_id=self.wallet.id, user_id=self.user_id, name="Épargne")
+        self.repo.rename.assert_awaited_once_with(wallet_id=self.wallet.id, user_id=self.user_id, name="Épargne", color=None)
         self.db.commit.assert_not_awaited()
         self.db.rollback.assert_awaited_once()
 

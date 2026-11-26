@@ -20,7 +20,7 @@ class WalletRepositoryTests(unittest.IsolatedAsyncioTestCase):
         self.wallet_id = uuid4()
 
     async def test_create_preserves_decimal_and_leaves_commit_to_service(self):
-        wallet = await self.repo.create(user_id=self.user_id, name="Courant")
+        wallet = await self.repo.create(user_id=self.user_id, name="Courant", color="#3b82f6")
         self.assertEqual(wallet.balance, Decimal("0.00"))
         self.assertEqual(wallet.user_id, self.user_id)
         self.db.add.assert_called_once_with(wallet)

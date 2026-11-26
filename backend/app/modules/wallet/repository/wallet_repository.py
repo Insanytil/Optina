@@ -20,9 +20,10 @@ class WalletRepository:
         *,
         user_id: uuid.UUID,
         name: str,
+        color: str,
         balance: Decimal = Decimal("0.00"),
     ) -> Wallet:
-        wallet = Wallet(user_id=user_id, name=name, balance=balance)
+        wallet = Wallet(user_id=user_id, name=name, color=color, balance=balance)
         self.db.add(wallet)
         await self.db.flush()
         return wallet
@@ -51,13 +52,19 @@ class WalletRepository:
             select(func.count()).select_from(Wallet).where(Wallet.user_id == user_id)
         ) or 0
 
+    async def used_colors(self, *, user_id: uuid.UUID) -> list[str]:
+        return list((await self.db.scalars(select(Wallet.color).where(Wallet.user_id == user_id))).all())
+
     async def rename(
-        self, *, wallet_id: uuid.UUID, user_id: uuid.UUID, name: str
+        self, *, wallet_id: uuid.UUID, user_id: uuid.UUID, name: str, color: str | None = None
     ) -> Wallet | None:
+        values: dict[str, str] = {"name": name}
+        if color is not None:
+            values["color"] = color
         return await self.db.scalar(
             update(Wallet)
             .where(Wallet.id == wallet_id, Wallet.user_id == user_id)
-            .values(name=name)
+            .values(**values)
             .returning(Wallet)
             .execution_options(populate_existing=True)
         )

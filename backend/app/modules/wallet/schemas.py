@@ -7,11 +7,13 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 WalletName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+WalletColor = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=r"^#[0-9a-fA-F]{6}$")]
 
 
 class WalletCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: WalletName
+    color: WalletColor | None = None
     opening_date: DateValue = Field(default_factory=DateValue.today)
     balance: Decimal = Field(default=Decimal("0.00"), max_digits=19, decimal_places=2, allow_inf_nan=False)
 
@@ -27,12 +29,14 @@ class WalletCreate(BaseModel):
 class WalletUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: WalletName
+    color: WalletColor | None = None
 
 
 class WalletResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     name: str
+    color: str
     balance: Decimal
     created_at: datetime
     updated_at: datetime
