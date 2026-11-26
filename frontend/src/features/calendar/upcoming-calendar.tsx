@@ -22,7 +22,7 @@ export function UpcomingCalendar() {
   const { query, month, weeks, today } = calendar
 
   return (
-    <Card size="sm">
+    <Card size="sm" className="lg:min-h-0 lg:flex-1">
       <CardHeader>
         <CardTitle>Échéances à venir</CardTitle>
         <CardDescription>
@@ -54,7 +54,7 @@ export function UpcomingCalendar() {
           </Button>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="flex flex-1 flex-col gap-2">
         <WalletFilter
           legend={calendar.legend}
           onToggle={calendar.toggle}
@@ -81,7 +81,7 @@ export function UpcomingCalendar() {
                 <span key={weekday}>{weekday}</span>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1" aria-busy={query.isPending}>
+            <div className="grid flex-1 auto-rows-fr grid-cols-7 gap-1" aria-busy={query.isPending}>
               {weeks
                 .flat()
                 .map((day) =>
