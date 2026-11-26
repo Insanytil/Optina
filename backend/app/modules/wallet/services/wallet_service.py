@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
 
@@ -97,9 +98,29 @@ class WalletService:
         if result is None:
             raise WalletNotFoundError()
         wallet, income, expenses = result
+        fixed = await self.repository.fixed_expenses(user_id=user_id, wallet_id=wallet_id,
+            date_from=period.date_from, date_to=period.date_to)
         return WalletSummaryResponse(wallet=WalletResponse.model_validate(wallet),
             date_from=period.date_from, date_to=period.date_to,
-            income=income, expenses=expenses, net=income - expenses)
+            income=income, expenses=expenses, fixed_expenses=fixed, net=income - expenses)
+
+    async def balance_history(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID, period: WalletPeriod):
+        """End-of-day balance for each day of the period up to today, walked back from the current balance."""
+        from datetime import date, timedelta
+        from app.modules.wallet.schemas import BalancePoint, WalletBalanceHistory
+        wallet = await self.get_by_id(user_id=user_id, wallet_id=wallet_id)
+        last = min(period.date_to, date.today())
+        points: list[BalancePoint] = []
+        if last >= period.date_from:
+            net = await self.repository.daily_net_after(user_id=user_id, wallet_id=wallet_id, after=period.date_from)
+            balance = wallet.balance - sum((amount for day, amount in net.items() if day > last), Decimal("0.00"))
+            day = last
+            while day >= period.date_from:
+                points.append(BalancePoint(date=day, balance=balance))
+                balance -= net.get(day, Decimal("0.00"))
+                day -= timedelta(days=1)
+            points.reverse()
+        return WalletBalanceHistory(date_from=period.date_from, date_to=period.date_to, points=points)
 
     async def analytics(self, *, user_id: uuid.UUID, wallet_id: uuid.UUID, period: WalletPeriod):
         from datetime import date, timedelta
@@ -151,7 +172,7 @@ class WalletService:
         path = []
         direct = Decimal("0.00")
         args = dict(user_id=user_id, wallet_id=wallet_id, category_id=params.category_id,
-            date_from=params.date_from, date_to=params.date_to)
+            date_from=params.date_from, date_to=params.date_to, origin=params.origin)
         if params.category_id is not None:
             category_service = CategoryService(self.db, CategoryRepository(self.db))
             path = await category_service.path(user_id=user_id, category_id=params.category_id)

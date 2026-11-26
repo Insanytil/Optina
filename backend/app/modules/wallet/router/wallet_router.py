@@ -7,7 +7,7 @@ from app.core.pagination import PagePaginatedResponse, PagePaginationParams
 from app.modules.auth.dependencies import CsrfProtectedSession, CurrentUser
 from app.modules.wallet.dependencies import WalletServiceDep
 from app.modules.wallet.exceptions import WalletInUseError, WalletNotFoundError
-from app.modules.wallet.schemas import WalletAnalyticsResponse, WalletCategoryBreakdown, WalletCategoryParams, WalletCreate, WalletPeriod, WalletResponse, WalletSummaryResponse, WalletUpdate
+from app.modules.wallet.schemas import WalletAnalyticsResponse, WalletBalanceHistory, WalletCategoryBreakdown, WalletCategoryParams, WalletCreate, WalletPeriod, WalletResponse, WalletSummaryResponse, WalletUpdate
 
 router = APIRouter(prefix="/wallets", tags=["wallets"])
 
@@ -54,6 +54,15 @@ async def wallet_summary(wallet_id: uuid.UUID, user: CurrentUser, service: Walle
                          period: Annotated[WalletPeriod, Query()]):
     try:
         return await service.summary(user_id=user.id, wallet_id=wallet_id, period=period)
+    except WalletNotFoundError:
+        raise HTTPException(status_code=404, detail="Portefeuille introuvable.") from None
+
+
+@router.get("/{wallet_id}/balance-history", response_model=WalletBalanceHistory)
+async def wallet_balance_history(wallet_id: uuid.UUID, user: CurrentUser, service: WalletServiceDep,
+                                 period: Annotated[WalletPeriod, Query()]):
+    try:
+        return await service.balance_history(user_id=user.id, wallet_id=wallet_id, period=period)
     except WalletNotFoundError:
         raise HTTPException(status_code=404, detail="Portefeuille introuvable.") from None
 

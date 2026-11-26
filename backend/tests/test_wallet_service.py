@@ -2,6 +2,7 @@ import unittest
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+import unittest.mock
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -25,6 +26,7 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
         self.wallet = SimpleNamespace(id=uuid4(), name="Courant", color="#3b82f6", balance=Decimal("12.34"), created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
         self.repo.lock_many.return_value = [self.wallet]
         self.repo.used_colors.return_value = []
+        self.repo.fixed_expenses.return_value = Decimal("0.00")
 
     async def test_create_commits_and_preserves_amount(self):
         self.repo.create.return_value = self.wallet
@@ -158,6 +160,7 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
         self.repo.get_summary.return_value = (self.wallet, Decimal("100.00"), Decimal("25.50"))
         result = await self.service.summary(user_id=self.user_id, wallet_id=self.wallet.id, period=period)
         self.assertEqual(result.net, Decimal("74.50"))
+        self.assertEqual(result.fixed_expenses, Decimal("0.00"))
         self.assertEqual(result.wallet.balance, self.wallet.balance)
         self.repo.get_summary.assert_awaited_once_with(user_id=self.user_id, wallet_id=self.wallet.id,
             date_from=period.date_from, date_to=period.date_to)
@@ -230,3 +233,36 @@ class WalletServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(WalletNotFoundError):
             await self.service.analytics(user_id=self.user_id, wallet_id=self.wallet.id, period=WalletPeriod())
         self.repo.expenses_by_date.assert_not_awaited()
+
+
+class WalletBalanceHistoryTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.repo = AsyncMock()
+        self.service = WalletService(AsyncMock(), self.repo, AsyncMock())
+        self.wallet = SimpleNamespace(id=uuid4(), name="Courant", color="#3b82f6", balance=Decimal("100.00"),
+                                      created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        self.repo.get_by_id.return_value = self.wallet
+
+    async def test_walks_back_from_current_balance(self):
+        from datetime import date, timedelta
+        from app.modules.wallet.schemas import WalletPeriod
+        today = date.today()
+        start = today - timedelta(days=2)
+        # -30 two days ago, +50 yesterday, -20 today: balance was 70 at the end of day one.
+        self.repo.daily_net_after.return_value = {today - timedelta(days=1): Decimal("50"), today: Decimal("-20")}
+        result = await self.service.balance_history(user_id=uuid4(), wallet_id=self.wallet.id,
+            period=WalletPeriod(date_from=start, date_to=today))
+        self.assertEqual([p.balance for p in result.points], [Decimal("70.00"), Decimal("120.00"), Decimal("100.00")])
+        self.repo.daily_net_after.assert_awaited_once_with(user_id=unittest.mock.ANY, wallet_id=self.wallet.id, after=start)
+
+    async def test_stops_at_today_and_skips_future_periods(self):
+        from datetime import date, timedelta
+        from app.modules.wallet.schemas import WalletPeriod
+        today = date.today()
+        self.repo.daily_net_after.return_value = {}
+        result = await self.service.balance_history(user_id=uuid4(), wallet_id=self.wallet.id,
+            period=WalletPeriod(date_from=today, date_to=today + timedelta(days=5)))
+        self.assertEqual([p.date for p in result.points], [today])
+        future = await self.service.balance_history(user_id=uuid4(), wallet_id=self.wallet.id,
+            period=WalletPeriod(date_from=today + timedelta(days=1), date_to=today + timedelta(days=5)))
+        self.assertEqual(future.points, [])
