@@ -29,7 +29,8 @@ export function AppNavigation({
                     render={
                       <Link
                         to={to}
-                        activeOptions={{ exact }}
+                        // Filters live in the URL search; they must not unhighlight the page.
+                        activeOptions={{ exact, includeSearch: false }}
                         activeProps={{
                           'aria-current': 'page',
                           'data-active': true,
