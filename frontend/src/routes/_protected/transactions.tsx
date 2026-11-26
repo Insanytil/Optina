@@ -40,7 +40,7 @@ function TransactionsPage() {
     wallets.data?.find((item) => item.id === search.walletId) ??
     wallets.data?.[0]
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
         <p className="mt-2 text-sm text-muted-foreground">

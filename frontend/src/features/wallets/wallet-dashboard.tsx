@@ -48,7 +48,7 @@ export function WalletDashboard({ walletId }: { walletId: string }) {
     [404, 422].includes(summary.error.status)
   return (
     <WidgetLayoutProvider>
-      <section className="mx-auto max-w-[1600px] space-y-5">
+      <section className="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
         <Link
           to="/"
           className="inline-flex items-center gap-2 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2"

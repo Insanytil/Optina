@@ -67,7 +67,7 @@ export function GlobalOverview() {
   })
   const data = query.data
   return (
-    <section className="mx-auto max-w-[1600px] space-y-5">
+    <section className="mx-auto w-full min-w-0 max-w-[1600px] space-y-5">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Vue globale</h1>
         <p className="mt-1 text-sm text-muted-foreground">

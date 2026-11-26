@@ -23,7 +23,7 @@ export function WalletOverview() {
   const [editor, setEditor] = useState<Wallet | 'new' | null>(null)
 
   return (
-    <section className="mx-auto max-w-5xl space-y-8">
+    <section className="mx-auto w-full min-w-0 max-w-5xl space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
