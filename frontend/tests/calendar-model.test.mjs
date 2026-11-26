@@ -141,3 +141,19 @@ test('summarizeDay groups by type, sorts largest first and totals', () => {
   assert.equal(summary.expense, 106000)
   assert.equal(summary.net, 124000)
 })
+
+test('stored wallet colors win over palette position', () => {
+  const colors = calendar.walletColors([
+    { id: 'a', name: 'A', color: '#ec4899' },
+    { id: 'b', name: 'B' },
+  ])
+  assert.equal(colors.get('a'), '#ec4899')
+  assert.equal(colors.get('b'), calendar.WALLET_COLORS[1])
+})
+
+test('next wallet color takes the first free one, then the least used', () => {
+  const palette = [...calendar.WALLET_COLORS]
+  assert.equal(calendar.nextWalletColor([]), palette[0])
+  assert.equal(calendar.nextWalletColor([palette[0], palette[2]]), palette[1])
+  assert.equal(calendar.nextWalletColor([...palette, palette[0]]), palette[1])
+})

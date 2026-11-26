@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import { LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,13 @@ import { Label } from '@/components/ui/label'
 import { saveWallet, walletKeys } from './api'
 import type { Wallet } from './api'
 import { localToday } from '@/features/transactions/form-values'
-import { transactionKeys } from '@/features/transactions/api'
+import {
+  loadWalletOptions,
+  transactionKeys,
+  walletOptionsKey,
+} from '@/features/transactions/api'
+import { nextWalletColor } from '@/features/calendar/calendar-model'
+import { WalletColorPicker } from './wallet-color-picker'
 
 const schema = z.object({
   opening_date: z.iso
@@ -42,6 +49,16 @@ export function WalletForm({
   onCancel: () => void
 }) {
   const client = useQueryClient()
+  const options = useQuery({
+    queryKey: walletOptionsKey,
+    queryFn: ({ signal }) => loadWalletOptions(signal),
+  })
+  const used = (options.data ?? [])
+    .filter((item) => item.id !== wallet?.id)
+    .map((item) => item.color)
+  // null until the user picks: a new wallet then gets the first free color.
+  const [picked, setPicked] = useState<string | null>(wallet?.color ?? null)
+  const color = picked ?? nextWalletColor(used)
   const {
     register,
     handleSubmit,
@@ -58,9 +75,10 @@ export function WalletForm({
     mutationFn: (values: z.infer<typeof schema>) =>
       saveWallet(
         wallet
-          ? { name: values.name }
+          ? { name: values.name, color }
           : {
               name: values.name,
+              color,
               balance: values.balance.replace(',', '.'),
               opening_date: values.opening_date,
             },
@@ -99,6 +117,18 @@ export function WalletForm({
             {errors.name.message}
           </p>
         )}
+      </div>
+      <div className="space-y-2">
+        <Label id="wallet-color-label">Couleur</Label>
+        <WalletColorPicker
+          value={color}
+          onChange={setPicked}
+          used={used}
+          disabled={mutation.isPending}
+        />
+        <p className="text-xs text-muted-foreground">
+          Utilisée dans le calendrier, les filtres et les cartes.
+        </p>
       </div>
       {!wallet && (
         <div className="space-y-2">

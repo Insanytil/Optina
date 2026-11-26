@@ -2,6 +2,11 @@ import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Wallet as WalletIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { walletColors } from '@/features/calendar/calendar-model'
+import {
+  loadWalletOptions,
+  walletOptionsKey,
+} from '@/features/transactions/api'
 import { listWallets, walletKeys } from './api'
 import type { Wallet } from './api'
 import { WalletCard } from './wallet-card'
@@ -25,6 +30,12 @@ export function WalletGrid({
     queryKey: walletKeys.page(page),
     queryFn: ({ signal }) => listWallets(page, signal),
   })
+  // Colors follow the full wallet list, so they match the calendar's.
+  const options = useQuery({
+    queryKey: walletOptionsKey,
+    queryFn: ({ signal }) => loadWalletOptions(signal),
+  })
+  const colors = walletColors(options.data ?? [])
 
   if (query.isPending)
     return (
@@ -75,6 +86,7 @@ export function WalletGrid({
             <WalletCard
               key={wallet.id}
               wallet={wallet}
+              color={colors.get(wallet.id)}
               actions={renderActions?.(wallet)}
             />
           ))}

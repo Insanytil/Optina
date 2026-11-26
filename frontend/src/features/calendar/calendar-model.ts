@@ -77,9 +77,21 @@ export const WALLET_COLORS = [
   '#64748b',
 ] as const
 
+/** First palette color no wallet uses yet, else the least used one. */
+export function nextWalletColor(used: string[]): string {
+  const free = WALLET_COLORS.find((color) => !used.includes(color))
+  if (free) return free
+  const count = (color: string) => used.filter((item) => item === color).length
+  return WALLET_COLORS.reduce((best, color) =>
+    count(color) < count(best) ? color : best,
+  )
+}
+
 export interface WalletOption {
   id: string
   name: string
+  /** Stored color; older payloads may lack it. */
+  color?: string
 }
 
 export interface LegendWallet extends WalletOption {
@@ -89,12 +101,12 @@ export interface LegendWallet extends WalletOption {
   net: number
 }
 
-/** Stable color per wallet, following the order the API returns them in. */
+/** Each wallet's stored color, falling back to the palette by position. */
 export function walletColors(wallets: WalletOption[]): Map<string, string> {
   return new Map(
     wallets.map((wallet, index) => [
       wallet.id,
-      WALLET_COLORS[index % WALLET_COLORS.length],
+      wallet.color ?? WALLET_COLORS[index % WALLET_COLORS.length],
     ]),
   )
 }

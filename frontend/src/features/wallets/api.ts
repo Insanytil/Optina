@@ -3,6 +3,7 @@ import { api } from '@/lib/api'
 export interface Wallet {
   id: string
   name: string
+  color: string
   balance: string
   created_at: string
   updated_at: string
@@ -38,7 +39,12 @@ export function listWallets(page: number, signal?: AbortSignal) {
 }
 
 export function saveWallet(
-  values: { name: string; balance?: string; opening_date?: string },
+  values: {
+    name: string
+    color: string
+    balance?: string
+    opening_date?: string
+  },
   id?: string,
 ) {
   return api<Wallet>(id ? `/wallets/${id}` : '/wallets', {
