@@ -1,526 +1,482 @@
-import { validBudgetAmount } from './budget-progress'
-import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import type { Category } from '@/features/categories/api'
 import { CategorySearch } from '@/features/categories/category-search'
-import { categoryKeys, loadCategoryTree } from '@/features/categories/api'
+import type { WalletOption } from '@/features/calendar/calendar-model'
+import { cn } from 'cn'
+import { budgetKeys, saveBudget } from './api'
+import type { Budget, BudgetValues, Frequency } from './api'
 import {
-  loadWalletOptions,
-  walletOptionsKey,
-} from '@/features/transactions/api'
-import { budgetKeys, saveBudget, type BudgetDefinition } from './api'
-import { calendarPeriod, nextPeriod, periodLabels, validDate } from './periods'
-import type { PeriodType } from './api'
-import { formatDay } from './presentation'
+  frequencyLabels,
+  normalizeAmount,
+  todayIso,
+  validAmount,
+} from './budget-model'
 
+const FREQUENCIES: Frequency[] = ['week', 'month', 'quarter', 'year', 'once']
+const SHORT: Record<Frequency, string> = {
+  week: 'Semaine',
+  month: 'Mois',
+  quarter: 'Trimestre',
+  year: 'Année',
+  once: 'Une fois',
+}
+const START_HELP: Record<Frequency, string> = {
+  week: 'Le budget commence le lundi de cette semaine.',
+  month: 'Le budget commence le 1er de ce mois.',
+  quarter: 'Le budget commence au début de ce trimestre.',
+  year: 'Le budget commence le 1er janvier de cette année.',
+  once: '',
+}
+
+interface Draft extends Omit<BudgetValues, 'amounts' | 'alert_threshold'> {
+  amount: string
+  changes: { effective_from: string; amount: string }[]
+  alert_threshold: string
+}
+
+function toDraft(budget: Budget | undefined, wallets: WalletOption[]): Draft {
+  const first = budget?.amounts.at(0)
+  const changes = budget?.amounts.slice(1) ?? []
+  return {
+    name: budget?.name ?? '',
+    category_id: budget?.category_id ?? '',
+    wallet_ids: budget?.wallet_ids ?? wallets.map((wallet) => wallet.id),
+    frequency: budget?.frequency ?? 'month',
+    start_date: budget?.start_date ?? `${todayIso().slice(0, 7)}-01`,
+    end_date: budget?.end_date ?? null,
+    amount: first?.amount ?? '',
+    changes,
+    carry_over: budget?.carry_over ?? false,
+    alert_threshold: String(budget?.alert_threshold ?? 80),
+  }
+}
+
+/** Create or edit a budget; lives in the settings page's side sheet. */
 export function BudgetForm({
   budget,
-  anchor,
-  duplicate = false,
-  onClose,
-  onBusy,
+  categories,
+  wallets,
   onSaved,
+  onCancel,
+  onDelete,
+  onDirtyChange,
 }: {
-  budget?: BudgetDefinition
-  anchor: string
-  duplicate?: boolean
-  onClose: () => void
-  onBusy: (busy: boolean) => void
-  onSaved: (goal: BudgetDefinition) => void
+  budget?: Budget
+  categories: Category[]
+  wallets: WalletOption[]
+  onSaved: (budget: Budget) => void
+  onCancel: () => void
+  onDelete?: () => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const client = useQueryClient()
-  const categories = useQuery({
-    queryKey: categoryKeys.tree,
-    queryFn: ({ signal }) => loadCategoryTree(signal),
-  })
-  const wallets = useQuery({
-    queryKey: walletOptionsKey,
-    queryFn: ({ signal }) => loadWalletOptions(signal),
-  })
-  const initial = budget
-    ? duplicate
-      ? nextPeriod(budget)
-      : { date_from: budget.date_from, date_to: budget.date_to }
-    : calendarPeriod('month', anchor)
-  const [repeats, setRepeats] = useState(
-    duplicate ? false : (budget?.repeats ?? false),
-  )
-  const [repeatUntil, setRepeatUntil] = useState(budget?.repeat_until ?? '')
-  const [scope, setScope] = useState<'period' | 'following'>('period')
-  const repeatingEdit = !!budget?.series_id && !duplicate
-  const [name, setName] = useState(budget?.name ?? '')
-  const [periodType, setPeriodType] = useState<PeriodType>(
-    budget?.period_type ?? 'month',
-  )
-  const [dates, setDates] = useState(initial)
-  const periodValid =
-    validDate(dates.date_from) &&
-    validDate(dates.date_to) &&
-    dates.date_from <= dates.date_to &&
-    (Date.parse(dates.date_to) - Date.parse(dates.date_from)) / 86400000 <= 3660
-  const [categoryId, setCategoryId] = useState(budget?.category_id ?? '')
-  const [amount, setAmount] = useState(budget?.amount ?? '')
-  const [walletIds, setWalletIds] = useState<string[]>(budget?.wallet_ids ?? [])
-  const amountValid = validBudgetAmount(amount)
+  const [initial] = useState(() => toDraft(budget, wallets))
+  const [draft, setDraft] = useState(initial)
+  const set = (changes: Partial<Draft>) => setDraft({ ...draft, ...changes })
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial)
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
+
+  const once = draft.frequency === 'once'
+  const threshold = Number(draft.alert_threshold)
+  const problems = [
+    !draft.name.trim() && 'Donnez un nom au budget.',
+    !draft.category_id && 'Choisissez une catégorie.',
+    !draft.wallet_ids.length && 'Choisissez au moins un portefeuille.',
+    !validAmount(draft.amount) && 'Saisissez un montant positif.',
+    once && !draft.end_date && 'Choisissez la date de fin.',
+    draft.end_date &&
+      draft.end_date < draft.start_date &&
+      'La fin doit suivre le début.',
+    !once &&
+      draft.changes.some(
+        (row) => !row.effective_from || !validAmount(row.amount),
+      ) &&
+      'Complétez ou retirez chaque changement de montant.',
+    !(Number.isInteger(threshold) && threshold >= 1 && threshold <= 200) &&
+      'Le seuil d’alerte va de 1 à 200 %.',
+  ].filter(Boolean) as string[]
+
   const mutation = useMutation({
     mutationFn: () =>
       saveBudget(
         {
-          repeats,
-          repeat_until: repeats && repeatUntil ? repeatUntil : null,
-          category_id: categoryId,
-          name:
-            name.trim() ||
-            categories.data?.find((category) => category.id === categoryId)
-              ?.name ||
-            'Budget',
-          ...dates,
-          period_type: periodType,
-          amount: amount.replace(',', '.'),
-          wallet_ids: walletIds,
+          name: draft.name.trim(),
+          category_id: draft.category_id,
+          wallet_ids: draft.wallet_ids,
+          frequency: draft.frequency,
+          start_date: draft.start_date,
+          end_date: draft.end_date || null,
+          amounts: [
+            {
+              effective_from: draft.start_date,
+              amount: normalizeAmount(draft.amount),
+            },
+            ...(once ? [] : draft.changes).map((row) => ({
+              effective_from: row.effective_from,
+              amount: normalizeAmount(row.amount),
+            })),
+          ],
+          carry_over: !once && draft.carry_over,
+          alert_threshold: threshold,
         },
-        duplicate ? undefined : budget?.id,
-        scope,
+        budget?.id,
       ),
-    onMutate: () => onBusy(true),
-    onSettled: () => onBusy(false),
     onSuccess: async (saved) => {
+      onDirtyChange(false)
       await client.invalidateQueries({ queryKey: budgetKeys.all })
       onSaved(saved)
-      onClose()
     },
   })
+
   return (
     <form
-      className="space-y-4"
+      className="flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault()
-        if (
-          validBudgetAmount(amount) &&
-          categoryId &&
-          walletIds.length &&
-          periodValid
-        )
-          mutation.mutate()
+        if (!problems.length) mutation.mutate()
       }}
     >
-      <fieldset className="space-y-4" disabled={mutation.isPending}>
-        {repeatingEdit ? (
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-            <Label htmlFor="budget-edit-scope">
-              Appliquer les modifications
-            </Label>
-            <select
-              id="budget-edit-scope"
-              value={scope}
-              onChange={(event) =>
-                setScope(event.target.value as 'period' | 'following')
-              }
-              className="h-11 w-full rounded-lg border bg-background px-3 text-sm"
-            >
-              <option value="period">Cette période uniquement</option>
-              <option value="following">
-                Cette période et toutes les suivantes
-              </option>
-            </select>
-            <p className="text-xs text-muted-foreground">
-              Les périodes précédentes conservent leur montant et leur
-              périmètre. Le choix « et les suivantes » remplace aussi les
-              exceptions déjà prévues après cette période.
-            </p>
-          </div>
-        ) : (
-          <fieldset className="space-y-2">
-            <legend className="mb-2 text-sm font-medium">
-              Quel type de budget ?
-            </legend>
-            {[
-              {
-                value: false,
-                label: 'Ponctuel',
-                help: 'Pour une période précise : un mois, un projet…',
-              },
-              {
-                value: true,
-                label: 'Répétitif',
-                help: 'Un nouveau budget pour chaque semaine, mois, trimestre ou année.',
-              },
-            ].map((option) => (
-              <label
-                key={String(option.value)}
-                className="flex min-h-14 cursor-pointer items-start gap-3 rounded-lg border p-3 has-checked:border-primary/50 has-checked:bg-primary/5"
-              >
-                <input
-                  className="mt-1 accent-primary"
-                  type="radio"
-                  name="budget-repeat"
-                  checked={repeats === option.value}
-                  disabled={!!budget && !duplicate && option.value}
-                  onChange={() => {
-                    setRepeats(option.value)
-                    if (option.value && periodType === 'custom') {
-                      setPeriodType('month')
-                      setDates(calendarPeriod('month', anchor))
-                    }
-                  }}
-                />
-                <span>
-                  <span className="block text-sm font-medium">
-                    {option.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {option.help}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-        )}
-        <section className="space-y-4" aria-labelledby="goal-scope-title">
-          <h3
-            id="goal-scope-title"
-            className="flex items-center gap-2 text-sm font-semibold"
-          >
-            <span
-              className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary"
-              aria-hidden="true"
-            >
-              1
-            </span>
-            Quelles dépenses suivre ?
-          </h3>
-          <div className="space-y-2">
-            <Label htmlFor="budget-category">Catégorie principale</Label>
-            <CategorySearch
-              id="budget-category"
-              value={categoryId}
-              onChange={setCategoryId}
-              categories={categories.data ?? []}
-              scope={{ rootOnly: true }}
-              disabled={mutation.isPending}
-              placeholder="Rechercher une catégorie principale…"
-              clearLabel="Effacer la catégorie"
-            />
-            <p className="text-xs text-muted-foreground">
-              Toutes les sous-catégories sont incluses dans ce budget.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="goal-name">Nom du budget (facultatif)</Label>
-            <Input
-              id="goal-name"
-              maxLength={255}
-              placeholder="Ex. Vacances en famille"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              aria-describedby="goal-name-help"
-            />
-            <p id="goal-name-help" className="text-xs text-muted-foreground">
-              Sans nom, nous utiliserons celui de la catégorie.
-            </p>
-          </div>
-        </section>
-        <section
-          className="space-y-4 border-t pt-5"
-          aria-labelledby="goal-period-title"
-        >
-          <h3
-            id="goal-period-title"
-            className="flex items-center gap-2 text-sm font-semibold"
-          >
-            <span
-              className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary"
-              aria-hidden="true"
-            >
-              2
-            </span>
-            Sur quelle période ?
-          </h3>
-          <div className="space-y-2">
-            <Label htmlFor="goal-period">Période</Label>
-            <select
-              id="goal-period"
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              value={periodType}
-              disabled={repeatingEdit}
-              onChange={(event) => {
-                const type = event.target.value as PeriodType
-                setPeriodType(type)
-                setDates(
-                  calendarPeriod(
-                    type,
-                    validDate(dates.date_from) ? dates.date_from : anchor,
-                  ),
-                )
-              }}
-            >
-              {Object.entries(periodLabels).map(([key, label]) => (
-                <option
-                  key={key}
-                  value={key}
-                  disabled={repeats && key === 'custom'}
-                >
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {periodType !== 'custom' && !repeatingEdit && (
-            <div className="space-y-2">
-              <Label htmlFor="goal-anchor">
-                {periodType === 'week'
-                  ? 'Une date dans la semaine'
-                  : periodType === 'month'
-                    ? 'Une date dans le mois'
-                    : periodType === 'quarter'
-                      ? 'Une date dans le trimestre'
-                      : 'Une date dans l’année'}
-              </Label>
-              <Input
-                id="goal-anchor"
-                type="date"
-                min="1900-01-01"
-                max="9998-12-31"
-                value={dates.date_from}
-                onChange={(event) => {
-                  if (validDate(event.target.value))
-                    setDates(calendarPeriod(periodType, event.target.value))
-                }}
-              />
-            </div>
-          )}
-          {periodType === 'custom' && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="goal-from">Du</Label>
-                <Input
-                  id="goal-from"
-                  type="date"
-                  required
-                  min="1900-01-01"
-                  max="9998-12-31"
-                  readOnly={periodType !== 'custom'}
-                  value={dates.date_from}
-                  onChange={(event) =>
-                    setDates({ ...dates, date_from: event.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="goal-to">Au</Label>
-                <Input
-                  id="goal-to"
-                  type="date"
-                  required
-                  min={dates.date_from}
-                  max="9998-12-31"
-                  readOnly={periodType !== 'custom'}
-                  value={dates.date_to}
-                  onChange={(event) =>
-                    setDates({ ...dates, date_to: event.target.value })
-                  }
-                />
-              </div>
-            </div>
-          )}
-          {periodValid && (
-            <p className="rounded-lg bg-muted/50 p-3 text-sm">
-              Du <strong>{formatDay(dates.date_from)}</strong> au{' '}
-              <strong>{formatDay(dates.date_to)}</strong>
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {periodType === 'custom'
-                  ? 'Une période libre pour un projet ou un besoin ponctuel.'
-                  : 'Les dates suivent le calendrier. Cet budget couvre toute cette période.'}
-              </span>
-            </p>
-          )}
-          {repeats && (
-            <div className="space-y-2">
-              <Label htmlFor="budget-until">
-                Dernière période (facultative)
-              </Label>
-              <Input
-                id="budget-until"
-                type="date"
-                value={repeatUntil}
-                min={dates.date_to}
-                max="9998-12-31"
-                disabled={repeatingEdit && scope === 'period'}
-                onChange={(event) =>
-                  setRepeatUntil(
-                    validDate(event.target.value)
-                      ? calendarPeriod(periodType, event.target.value).date_to
-                      : '',
-                  )
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Choisissez une date dans la dernière période souhaitée ; sa fin
-                sera utilisée. Sans date, le budget continue. Aucun montant
-                inutilisé n’est reporté.
-              </p>
-            </div>
-          )}
-          {!periodValid && (
-            <p role="alert" className="text-xs text-destructive">
-              Choisissez une période valide de dix ans au maximum.
-            </p>
-          )}
+      <fieldset
+        disabled={mutation.isPending}
+        className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4"
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="budget-category">Catégorie</Label>
+          <CategorySearch
+            id="budget-category"
+            value={draft.category_id}
+            onChange={(category_id) => {
+              // Name the budget after its category until the user names it.
+              const previous = categories.find(
+                (item) => item.id === draft.category_id,
+              )?.name
+              const next = categories.find((item) => item.id === category_id)
+              set({
+                category_id,
+                name:
+                  !draft.name || draft.name === previous
+                    ? (next?.name ?? draft.name)
+                    : draft.name,
+              })
+            }}
+            categories={categories}
+            placeholder="Choisir une catégorie…"
+            clearLabel="Effacer la catégorie"
+          />
+          <p className="text-xs text-muted-foreground">
+            Ses sous-catégories sont comptées aussi.
+          </p>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="budget-amount">
-              Quel montant souhaitez-vous viser ?
+        <div className="space-y-1.5">
+          <Label htmlFor="budget-name">Nom</Label>
+          <Input
+            id="budget-name"
+            maxLength={255}
+            value={draft.name}
+            onChange={(event) => set({ name: event.target.value })}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <span id="budget-frequency" className="text-sm font-medium">
+            Fréquence
+          </span>
+          <div
+            role="radiogroup"
+            aria-labelledby="budget-frequency"
+            className="flex flex-wrap overflow-hidden rounded-md border"
+          >
+            {FREQUENCIES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={draft.frequency === value}
+                onClick={() =>
+                  set({
+                    frequency: value,
+                    end_date: value === 'once' ? draft.end_date : null,
+                  })
+                }
+                className={cn(
+                  'flex-1 px-2.5 py-1.5 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px]',
+                  draft.frequency === value &&
+                    'bg-muted font-medium text-foreground',
+                )}
+              >
+                {SHORT[value]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="budget-start">{once ? 'Du' : 'À partir du'}</Label>
+            <Input
+              id="budget-start"
+              type="date"
+              required
+              value={draft.start_date}
+              onChange={(event) => set({ start_date: event.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="budget-end">
+              {once ? 'Au' : 'Jusqu’au (facultatif)'}
             </Label>
             <Input
-              id="budget-amount"
-              aria-invalid={!!amount && !amountValid}
-              aria-describedby={
-                amount && !amountValid ? 'budget-amount-error' : undefined
+              id="budget-end"
+              type="date"
+              required={once}
+              min={draft.start_date}
+              value={draft.end_date ?? ''}
+              onChange={(event) =>
+                set({ end_date: event.target.value || null })
               }
-              required
-              inputMode="decimal"
-              pattern="[0-9]+([.,][0-9]{1,2})?"
-              value={amount}
-              maxLength={20}
-              onChange={(event) => setAmount(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              Un repère pour la période entière, sans blocage en cas de
-              dépassement.
-            </p>
-            {amount && !amountValid && (
-              <p
-                id="budget-amount-error"
-                role="alert"
-                className="text-xs text-destructive"
-              >
-                Saisissez un montant positif avec au maximum deux décimales et
-                17 chiffres avant la virgule.
-              </p>
-            )}
           </div>
-        </section>
-        <section
-          className="space-y-4 border-t pt-5"
-          aria-labelledby="goal-wallets-title"
-        >
-          <h3
-            id="goal-wallets-title"
-            className="flex items-center gap-2 text-sm font-semibold"
-          >
-            <span
-              className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary"
-              aria-hidden="true"
-            >
-              3
-            </span>
-            Dans quels portefeuilles ?
-          </h3>
-          <fieldset className="space-y-2">
-            <legend className="mb-2 text-sm font-medium">
-              Les dépenses de ces portefeuilles seront comptabilisées
-            </legend>
-            {wallets.isPending ? (
-              <p role="status" className="text-sm">
-                Chargement…
-              </p>
-            ) : wallets.isError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {wallets.error.message}
+          {!once && (
+            <p className="col-span-2 -mt-1 text-xs text-muted-foreground">
+              {START_HELP[draft.frequency]}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="budget-amount">
+            {once
+              ? 'Montant'
+              : `Montant ${frequencyLabels[draft.frequency].toLowerCase().replace('chaque ', 'par ')}`}
+          </Label>
+          <Input
+            id="budget-amount"
+            inputMode="decimal"
+            placeholder="0,00"
+            value={draft.amount}
+            onChange={(event) => set({ amount: event.target.value })}
+          />
+        </div>
+
+        {!once && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">
+                Changements de montant
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  set({
+                    changes: [
+                      ...draft.changes,
+                      { effective_from: '', amount: draft.amount },
+                    ],
+                  })
+                }
+              >
+                <Plus aria-hidden="true" />
+                Ajouter
+              </Button>
+            </div>
+            {draft.changes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Pour changer le montant sans toucher aux périodes passées, par
+                exemple « 450 € à partir de janvier ».
               </p>
             ) : (
-              <>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() =>
-                      setWalletIds(wallets.data.map((wallet) => wallet.id))
-                    }
-                  >
-                    Tout sélectionner
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setWalletIds([])}
-                  >
-                    Tout désélectionner
-                  </Button>
-                </div>
-                <div className="max-h-48 space-y-2 overflow-auto rounded-lg border p-3">
-                  {wallets.data.map((wallet) => (
-                    <label
-                      key={wallet.id}
-                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm hover:bg-muted/40 has-checked:bg-primary/5"
-                    >
-                      <input
-                        className="size-4 accent-primary"
-                        type="checkbox"
-                        checked={walletIds.includes(wallet.id)}
+              <ul className="space-y-2">
+                {draft.changes.map((row, index) => (
+                  <li key={index} className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label
+                        htmlFor={`budget-change-date-${index}`}
+                        className="text-xs"
+                      >
+                        À partir du
+                      </Label>
+                      <Input
+                        id={`budget-change-date-${index}`}
+                        type="date"
+                        min={draft.start_date}
+                        value={row.effective_from}
                         onChange={(event) =>
-                          setWalletIds(
-                            event.target.checked
-                              ? [...walletIds, wallet.id]
-                              : walletIds.filter((id) => id !== wallet.id),
-                          )
+                          set({
+                            changes: draft.changes.map((item, i) =>
+                              i === index
+                                ? {
+                                    ...item,
+                                    effective_from: event.target.value,
+                                  }
+                                : item,
+                            ),
+                          })
                         }
                       />
-                      {wallet.name}
-                    </label>
-                  ))}
-                </div>
-              </>
+                    </div>
+                    <div className="w-28 space-y-1">
+                      <Label
+                        htmlFor={`budget-change-amount-${index}`}
+                        className="text-xs"
+                      >
+                        Montant
+                      </Label>
+                      <Input
+                        id={`budget-change-amount-${index}`}
+                        inputMode="decimal"
+                        value={row.amount}
+                        onChange={(event) =>
+                          set({
+                            changes: draft.changes.map((item, i) =>
+                              i === index
+                                ? { ...item, amount: event.target.value }
+                                : item,
+                            ),
+                          })
+                        }
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Retirer ce changement"
+                      onClick={() =>
+                        set({
+                          changes: draft.changes.filter((_, i) => i !== index),
+                        })
+                      }
+                    >
+                      <X aria-hidden="true" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             )}
-          </fieldset>
-          {!walletIds.length && (
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium">Portefeuilles</span>
+          <div className="flex flex-wrap gap-1.5">
+            {wallets.map((wallet) => {
+              const on = draft.wallet_ids.includes(wallet.id)
+              return (
+                <button
+                  key={wallet.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    set({
+                      wallet_ids: on
+                        ? draft.wallet_ids.filter((id) => id !== wallet.id)
+                        : [...draft.wallet_ids, wallet.id],
+                    })
+                  }
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm focus-visible:outline-2',
+                    on
+                      ? 'border-foreground/30 bg-muted font-medium'
+                      : 'text-muted-foreground',
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn('size-2 rounded-full', !on && 'opacity-40')}
+                    style={{ backgroundColor: wallet.color }}
+                  />
+                  {wallet.name}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {!once && (
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Label htmlFor="budget-carry">Reporter le reste</Label>
+              <p className="text-xs text-muted-foreground">
+                Ce qui reste s’ajoute à la période suivante ; un dépassement la
+                réduit.
+              </p>
+            </div>
+            <Switch
+              id="budget-carry"
+              checked={draft.carry_over}
+              onCheckedChange={(carry_over) => set({ carry_over })}
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="budget-threshold">M’alerter à</Label>
             <p className="text-xs text-muted-foreground">
-              Sélectionnez au moins un portefeuille pour continuer.
+              Dépensé et encore prévu compris.
             </p>
-          )}
-        </section>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Input
+              id="budget-threshold"
+              inputMode="numeric"
+              className="w-16 text-right"
+              value={draft.alert_threshold}
+              onChange={(event) =>
+                set({ alert_threshold: event.target.value.replace(/\D/g, '') })
+              }
+            />
+            <span className="text-sm text-muted-foreground">%</span>
+          </div>
+        </div>
+
+        {mutation.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {mutation.error.message}
+          </p>
+        )}
       </fieldset>
-      <p className="text-xs text-muted-foreground">
-        Les budgets peuvent se recouvrir pour suivre plusieurs horizons. Ils
-        n’empêchent aucune dépense et ne modifient pas les soldes.
-      </p>
-      {mutation.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {mutation.error.message}
-        </p>
-      )}
-      <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t bg-background py-3">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={mutation.isPending}
-          onClick={onClose}
-        >
-          Annuler
-        </Button>
-        <Button
-          type="submit"
-          className="min-h-11"
-          disabled={
-            mutation.isPending ||
-            !categoryId ||
-            !walletIds.length ||
-            !amountValid ||
-            !periodValid ||
-            wallets.isError ||
-            wallets.isPending
-          }
-        >
-          {mutation.isPending
-            ? 'Enregistrement…'
-            : budget && !duplicate
-              ? 'Enregistrer les modifications'
-              : 'Créer mon budget'}
-        </Button>
+      <div className="flex items-center justify-between gap-2 border-t px-5 py-3">
+        {onDelete ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-destructive"
+            disabled={mutation.isPending}
+            onClick={onDelete}
+          >
+            <Trash2 aria-hidden="true" />
+            Supprimer
+          </Button>
+        ) : (
+          <span />
+        )}
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={mutation.isPending}
+            onClick={onCancel}
+          >
+            Annuler
+          </Button>
+          <Button
+            type="submit"
+            disabled={mutation.isPending || problems.length > 0}
+            title={problems[0]}
+          >
+            {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          </Button>
+        </div>
       </div>
     </form>
   )
