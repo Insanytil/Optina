@@ -237,7 +237,8 @@ function DayNumber({ day, isToday }: { day: Day; isToday: boolean }) {
     <span
       className={cn(
         'flex size-5 items-center justify-center rounded-full text-xs',
-        isToday && 'size-6 bg-primary text-sm font-bold text-primary-foreground',
+        isToday &&
+          'size-6 bg-primary text-sm font-bold text-primary-foreground',
       )}
     >
       {Number(day.date.slice(8))}

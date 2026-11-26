@@ -81,7 +81,10 @@ export function UpcomingCalendar() {
                 <span key={weekday}>{weekday}</span>
               ))}
             </div>
-            <div className="grid flex-1 auto-rows-fr grid-cols-7 gap-1" aria-busy={query.isPending}>
+            <div
+              className="grid flex-1 auto-rows-fr grid-cols-7 gap-1"
+              aria-busy={query.isPending}
+            >
               {weeks
                 .flat()
                 .map((day) =>
